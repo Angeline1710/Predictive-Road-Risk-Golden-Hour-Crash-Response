@@ -12,13 +12,13 @@
 
 | Layer | State |
 |---|---|
-| Product definition (PRD, UX/appflow, model card) | **Done** |
-| Model A — crash detection | Trained, exported, `crash_fusion_v1.tflite` (173 KB). **Not validated, not integrated** |
-| Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Not served** |
+| Product definition (PRD, UX/appflow, model card) | **Done**, kept in sync with the built model (PRD §7.1/§6.1.2/§12.3 updated 2026-08-17) |
+| Model A — crash detection | Trained, exported, **deployable artifact verified end-to-end**: `crash_fusion_deployable_v1.tflite` (299.5 KB) takes raw sensor input, computes its own mel spectrogram on-device, and needs no client-side normalisation. Real-world accuracy **still unvalidated** — see `ml/MODELS.md` §0 |
+| Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Not served** — no API wraps it yet |
 | Backend, Android app, dashboard, gateway, infra | **Nothing exists** |
-| Version control | **No git repo** |
+| Version control | **Done.** Pushed to [GitHub](https://github.com/Angeline1710/Predictive-Road-Risk-Golden-Hour-Crash-Response), `main` tracking `origin/main` |
 
-Roughly **20% of the MVP is built**, and it is the 20% that proves the idea rather than the 80% that demonstrates it. Every remaining piece is conventional engineering — no research risk left.
+Roughly **25% of the MVP is built** — the ML layer plus the one integration risk (on-device audio processing) that could have quietly become a week of Android debugging is now closed and proven, not just planned. Every remaining piece is conventional engineering — no research risk left, but also no shortcuts: backend, Android, and dashboard are each still at zero lines of code.
 
 ---
 
@@ -26,9 +26,9 @@ Roughly **20% of the MVP is built**, and it is the 20% that proves the idea rath
 
 Four things gate everything else and cost almost nothing to start.
 
-**① `git init`. — DONE.** Repository initialised, [`.gitignore`](.gitignore) excludes `ml/data/` (935 MB, reproducible via the `ml/*/*.py` scripts) and per-run logs while keeping the small artifacts and result JSON/CSV that document what the models actually did.
+**① `git init`. — DONE.** Repository initialised, [`.gitignore`](.gitignore) excludes `ml/data/` (935 MB, reproducible via the `ml/*/*.py` scripts) and per-run logs while keeping the small artifacts and result JSON/CSV that document what the models actually did. **Pushed to GitHub** — `main` is the source of truth from here on; every future change should be a commit, not a working-tree edit that only exists on one laptop.
 
-**② Start the SMS inbound path.** This has the longest lead time of anything in the project and it is the demo's best moment (PRD §16.2 step 5: airplane mode, alert still lands). Indian inbound long codes require DLT registration under TRAI, which takes days-to-weeks and can stall. **Do not put the demo on that critical path.**
+**② Start the SMS inbound path — still open, now the single remaining "do today" item.** This has the longest lead time of anything in the project and it is the demo's best moment (PRD §16.2 step 5: airplane mode, alert still lands). Indian inbound long codes require DLT registration under TRAI, which takes days-to-weeks and can stall. **Do not put the demo on that critical path.**
 
 Use a **companion-phone SMS receiver** instead: a second Android device runs a tiny app with `RECEIVE_SMS` that forwards inbound `RRX1` messages to `POST /ingest/sms` over Wi-Fi. Zero carrier provisioning, works offline on a venue hotspot, and the protocol is identical — swapping in a real gateway later is a config change. Register for a real long code in parallel as the upgrade path, not the dependency.
 
@@ -93,8 +93,8 @@ Start in parallel with the backend on day 1; do not wait for the API.
 | Scaffold, Hilt, Compose, theme from UX §28 tokens | 2 | |
 | Sensing: ring buffer, foreground service, Activity Recognition gating | 3 | |
 | Stage-A gate + drive-session lifecycle | 1 | |
-| **On-device log-mel spectrogram** | **2–3** | See §4.1 — the biggest unplanned item |
-| TFLite runner: assemble 4 inputs, normalise, infer | 2 | Norm stats are in `crash_fusion_norm.npz` |
+| ~~On-device log-mel spectrogram~~ | ~~2–3~~ **0** | **Resolved server-side, not an Android task.** §4.1 — the mel computation is baked into the TFLite graph itself; the app records raw audio and passes the byte buffer straight to the interpreter. No Kotlin DSP, no FFT library, no filterbank to get wrong |
+| TFLite runner: assemble 4 raw inputs, invoke, parse two outputs | 1 | Was "assemble + normalise + infer" (2 days) — **normalisation is also baked into the graph now** (`Normalize` layer), so this is just marshalling arrays, not replicating `(x-μ)/σ` math from `crash_fusion_norm.npz` |
 | Cancel window screen (UX §15) — full-screen, siren, TTS, volume-key cancel, 800 ms delay | 2.5 | Highest-stakes screen; budget properly |
 | Transport: HTTPS + SMS fallback + WorkManager retry + parallel send on CRITICAL | 2.5 | |
 | Onboarding + consent cards (UX §11), 5 languages | 3 | |
@@ -102,7 +102,7 @@ Start in parallel with the backend on day 1; do not wait for the API.
 | Sending/Sent/Acknowledged + Golden Hour dial | 1.5 | |
 | Settings, privacy, data deletion | 1.5 | |
 | OEM battery-optimisation flow + verification | 1 | |
-| **Total** | **~25** | |
+| **Total** | **~21** | down from ~25 — the mel/normalisation resolution bought back ~4 days |
 
 ### 3.4 Dashboard — `rrx-ops`
 
@@ -128,10 +128,10 @@ Fully parallel. Only needs the API contract, which the OpenAPI spec gives on day
 | k6 load test — 100 alerts/min burst (NFR-P7) | 0.5 |
 | Shake rig / controlled trigger for the live demo | 1 |
 | Playwright E2E demo script + rehearsal | 1.5 |
-| Deck rebuilt against the working system | 1 |
+| Deck rebuilt against the working system — architecture slide, model params, artifact size all changed since the original deck (§4.3) | 1 |
 | **Total** | **~7.5** |
 
-**Grand total ≈ 67 person-days.** At 5 people over 6 weeks (~150 person-days available) that is comfortable — *if* the Android track starts on day 1.
+**Grand total ≈ 63 person-days** (backend 15 + ETL 4 + Android 21 + dashboard 15.5 + integration 7.5). At 5 people over 6 weeks (~150 person-days available) that is comfortable — *if* the Android track starts on day 1.
 
 ---
 
@@ -168,9 +168,9 @@ Required, none of which exists yet:
 
 **The app must work with the mic denied.** The degradation results support this — recall held at 1.000 with audio removed. Make that the advertised behaviour, not a hidden fallback.
 
-### 4.3 The PRD's model spec is now stale
+### 4.3 The PRD's model spec was stale — RESOLVED
 
-PRD §7.1 describes a single-modality 1D-CNN on `200 × 6`, ~45k params. The built model is a four-branch fusion network on `200 × 9` + mel + GPS + tabular, 76,814 params. **Update PRD §7.1 and the architecture diagram before the deck is rebuilt** — the deck currently claims something the code no longer does.
+PRD §7.1 described a single-modality 1D-CNN on `200 × 6`, ~45k params. The built model is a four-branch fusion network on `200 × 9` + mel + GPS + tabular, 76,814 params. **Fixed** — PRD §7.1, §6.1.2, and §12.3 were rewritten 2026-08-17 to match the implemented architecture, with an explicit note that `ml/MODELS.md` is now the authoritative source and the PRD table is kept in sync with it, not the reverse. **The slide deck itself still needs rebuilding** against these numbers before it's presented — that's a deck task, not a code task, and isn't tracked elsewhere in this plan. Add it to §3.5 if a rebuilt deck is needed before demo day.
 
 ---
 
@@ -180,7 +180,8 @@ PRD §7.1 describes a single-modality 1D-CNN on `200 × 6`, ~45k params. The bui
 Week 1  backend scaffold + POST /alerts + schema     ─┐
         android scaffold + sensing ring buffer        ├─ all three parallel
         dashboard scaffold + design tokens           ─┘
-        [today] git init · SMS receiver · corridor · mel-in-graph decision
+        [done] git init + push · corridor frozen · mel-in-graph resolved
+        [still open] SMS companion-phone receiver (§2②)
 
 Week 2  enrichment + gateway + WS          android: Stage-A + TFLite runner
         ETL: OSM -> 500m segments          dashboard: components + live map
