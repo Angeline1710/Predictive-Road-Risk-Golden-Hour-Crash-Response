@@ -1,0 +1,193 @@
+{
+  "n_rows": 2500000,
+  "n_features": 29,
+  "features": [
+    "district",
+    "road_class",
+    "exposure",
+    "is_urban",
+    "curvature_deg",
+    "gradient_pct",
+    "lanes",
+    "junction_count",
+    "is_lit",
+    "has_median",
+    "speed_limit_kmh",
+    "district_fatal_share",
+    "district_vru_share",
+    "district_heavy_share",
+    "district_total_2021",
+    "district_yoy",
+    "hour_of_week",
+    "hour",
+    "dow",
+    "is_weekend",
+    "weather",
+    "visibility",
+    "traffic_density",
+    "is_peak_hour",
+    "is_night",
+    "solar_elev",
+    "unlit_night",
+    "hist_severe_3y",
+    "is_blackspot"
+  ],
+  "pos_rate": 0.0090384,
+  "poisson_spatial": {
+    "n": 500000.0,
+    "pos_rate": 0.00909295425881436,
+    "best_iter": 172.0,
+    "poisson_deviance": 0.06905987047211279,
+    "spearman_vs_truth": 0.714432913339762,
+    "pr_auc": 0.08362476951310693,
+    "roc_auc": 0.8410216584486697,
+    "spearman_rank": 0.11211930900359528,
+    "fold": 2.0,
+    "held_districts": 8.6,
+    "pr_auc_sd": 0.007667430668319674,
+    "p@0.1%": {
+      "precision": 0.27388868542953226,
+      "recall_of_crashes": 0.032891501397831785,
+      "lift": 30.07807870394212,
+      "k": 499.4
+    },
+    "p@1%": {
+      "precision": 0.14415420938370854,
+      "recall_of_crashes": 0.16423512119279166,
+      "lift": 15.853822356003473,
+      "k": 4999.6
+    },
+    "p@5%": {
+      "precision": 0.07375319721249571,
+      "recall_of_crashes": 0.4114599490022264,
+      "lift": 8.112530198110207,
+      "k": 24999.4
+    }
+  },
+  "poisson_temporal": {
+    "n": 625000.0,
+    "pos_rate": 0.009037734400629145,
+    "best_iter": 430.5,
+    "poisson_deviance": 0.06853708480587198,
+    "spearman_vs_truth": 0.7165251372263994,
+    "pr_auc": 0.08315975772350895,
+    "roc_auc": 0.8415228618475047,
+    "spearman_rank": 0.11176232476886365,
+    "fold": 1.5,
+    "pr_auc_sd": 0.007111763692077639,
+    "p@0.1%": {
+      "precision": 0.2746019230769231,
+      "recall_of_crashes": 0.03307151732903585,
+      "lift": 30.492546590002707,
+      "k": 624.5
+    },
+    "p@1%": {
+      "precision": 0.1430392124481698,
+      "recall_of_crashes": 0.1642511803773794,
+      "lift": 15.846297001982204,
+      "k": 6249.5
+    },
+    "p@5%": {
+      "precision": 0.07371729168899134,
+      "recall_of_crashes": 0.4143177310848399,
+      "lift": 8.172677009928126,
+      "k": 31249.25
+    }
+  },
+  "poisson_random": {
+    "n": 500000.0,
+    "pos_rate": 0.009038391423334291,
+    "best_iter": 453.2,
+    "poisson_deviance": 0.06841355946350454,
+    "spearman_vs_truth": 0.7188860402749562,
+    "pr_auc": 0.08399465927374497,
+    "roc_auc": 0.8431665368387508,
+    "spearman_rank": 0.11251196906767533,
+    "fold": 2.0,
+    "pr_auc_sd": 0.002104438033292329,
+    "p@0.1%": {
+      "precision": 0.27981563126252507,
+      "recall_of_crashes": 0.03348807241014347,
+      "lift": 30.963073263530383,
+      "k": 499.6
+    },
+    "p@1%": {
+      "precision": 0.14541020064584448,
+      "recall_of_crashes": 0.1664471135149805,
+      "lift": 16.086571051419746,
+      "k": 4999.6
+    },
+    "p@5%": {
+      "precision": 0.07372885257175255,
+      "recall_of_crashes": 0.41357716629134833,
+      "lift": 8.156777090083349,
+      "k": 24999.6
+    }
+  },
+  "binary_spatial": {
+    "n": 500000.0,
+    "pos_rate": 0.00909295425881436,
+    "best_iter": 87.8,
+    "brier": 0.008646982823026277,
+    "pr_auc": 0.08454009384811459,
+    "roc_auc": 0.84084841848836,
+    "spearman_rank": 0.1120764176913565,
+    "fold": 2.0,
+    "held_districts": 8.6,
+    "pr_auc_sd": 0.007976879891332864,
+    "p@0.1%": {
+      "precision": 0.28126642215985187,
+      "recall_of_crashes": 0.03393597918733683,
+      "lift": 30.883720953856148,
+      "k": 499.4
+    },
+    "p@1%": {
+      "precision": 0.1446399129964397,
+      "recall_of_crashes": 0.16454090897105045,
+      "lift": 15.904636931541011,
+      "k": 4999.6
+    },
+    "p@5%": {
+      "precision": 0.07359152001037875,
+      "recall_of_crashes": 0.4105842857403557,
+      "lift": 8.094691242515532,
+      "k": 24999.4
+    }
+  },
+  "optimism_gap_pr_auc": 0.0003698897606380369,
+  "final_best_iter": 491,
+  "gain_importance": {
+    "hist_severe_3y": 195292.29409348965,
+    "weather": 69178.9989219904,
+    "district": 25828.377628207207,
+    "is_blackspot": 19147.37399983406,
+    "curvature_deg": 17942.400071382523,
+    "gradient_pct": 16306.928861916065,
+    "traffic_density": 16201.547647953033,
+    "hour_of_week": 13940.367000222206,
+    "exposure": 9950.937579989433,
+    "visibility": 9233.976355671883,
+    "hour": 6676.836881637573,
+    "junction_count": 5423.61188185215,
+    "is_peak_hour": 5114.434675812721,
+    "speed_limit_kmh": 4832.099924087524,
+    "solar_elev": 4745.686532855034,
+    "lanes": 4121.493324637413,
+    "district_fatal_share": 2559.159784078598,
+    "district_heavy_share": 2533.0602898597717,
+    "district_vru_share": 2411.3149609565735,
+    "road_class": 2319.543226480484
+  },
+  "band_thresholds": {
+    "Low<": 0.003256608308887652,
+    "Moderate<": 0.013658109062029763,
+    "High<": 0.05329646024360551,
+    "Severe>=": 0.05329646024360551
+  },
+  "band_observed_rate": {
+    "Low": 0.0009104,
+    "Moderate": 0.005574857142857143,
+    "High": 0.026643333333333335,
+    "Severe": 0.11449333333333334
+  }
+}

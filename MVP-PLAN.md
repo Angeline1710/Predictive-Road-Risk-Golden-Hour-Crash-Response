@@ -1,0 +1,229 @@
+# Path to MVP
+
+| | |
+|---|---|
+| **Date** | 2026-08-17 |
+| **Companions** | `PRD.md` · `UX-APPFLOW.md` · `ml/MODELS.md` |
+| **MVP definition** | **Demo-complete for SIH 2026** — the seven-step jury walkthrough in PRD §16.2 runs end to end on real hardware. *Not* a pilot, not Play Store ready. |
+
+---
+
+## 1. Where it stands
+
+| Layer | State |
+|---|---|
+| Product definition (PRD, UX/appflow, model card) | **Done** |
+| Model A — crash detection | Trained, exported, `crash_fusion_v1.tflite` (173 KB). **Not validated, not integrated** |
+| Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Not served** |
+| Backend, Android app, dashboard, gateway, infra | **Nothing exists** |
+| Version control | **No git repo** |
+
+Roughly **20% of the MVP is built**, and it is the 20% that proves the idea rather than the 80% that demonstrates it. Every remaining piece is conventional engineering — no research risk left.
+
+---
+
+## 2. Do these today
+
+Four things gate everything else and cost almost nothing to start.
+
+**① `git init`. — DONE.** Repository initialised, [`.gitignore`](.gitignore) excludes `ml/data/` (935 MB, reproducible via the `ml/*/*.py` scripts) and per-run logs while keeping the small artifacts and result JSON/CSV that document what the models actually did.
+
+**② Start the SMS inbound path.** This has the longest lead time of anything in the project and it is the demo's best moment (PRD §16.2 step 5: airplane mode, alert still lands). Indian inbound long codes require DLT registration under TRAI, which takes days-to-weeks and can stall. **Do not put the demo on that critical path.**
+
+Use a **companion-phone SMS receiver** instead: a second Android device runs a tiny app with `RECEIVE_SMS` that forwards inbound `RRX1` messages to `POST /ingest/sms` over Wi-Fi. Zero carrier provisioning, works offline on a venue hotspot, and the protocol is identical — swapping in a real gateway later is a config change. Register for a real long code in parallel as the upgrade path, not the dependency.
+
+**③ Answer PRD Q1: which corridor? — DECIDED.** **NH-45 through Chengalpattu district**, Tamil Nadu.
+
+| | |
+|---|---|
+| Total accidents (2021) | 1,614 — ranks **13th of 43** TN districts by volume |
+| Fatal accidents (2021) | 452 (fatal share 0.280 — ranks 21st of 43, roughly median) |
+| Deaths (2021) | 472 |
+| YoY growth (2021/2020) | +19.7% |
+| Vulnerable-road-user death share | 0.326 |
+
+Not the single worst district in Tamil Nadu by fatal share — it's genuinely mid-table there. It is chosen instead because it combines **real volume** (top-third statewide) with **geographic convenience**: it borders Chennai, carries NH-45 (the Chennai–Trichy highway), and is already the PRD's worked example (`ml/MODELS.md` §4.1, the `Chengalpattu GH Trauma` responder in the sample dispatch payload). Picking the highest-fatal-share district instead would mean building demo infrastructure somewhere without an easy path for a five-person team to physically drive the corridor. This is now load-bearing for the OSM extract, segment table, demo map, and responder seed data (§3.2) — do not revisit without updating all four.
+
+**④ Add `pyproject.toml` / `requirements.txt`. — DONE.** [`ml/requirements.txt`](ml/requirements.txt) pins every package actually imported by the ML layer, verified against the live environment rather than guessed: `tensorflow==2.21.0`, `lightgbm==4.7.0`, `librosa==1.0.0`, `soundfile==0.14.0`, `shap==0.52.0`, `numpy==2.5.1`, `pandas==3.0.3`, `scipy==1.16.3`, `scikit-learn==1.9.0`, `pyarrow==25.0.1`, `matplotlib==3.11.0`. **`xgboost` is not pinned** — PRD §6.3/7.2 names it as Model B's cross-check benchmark, but that comparison was never implemented; only LightGBM exists in `ml/risk_model/train.py`. Flagged in the requirements file itself rather than silently added as an unused dependency.
+
+---
+
+## 3. Component gaps
+
+Effort in person-days. Assumes a 5-person team working in parallel.
+
+### 3.1 Backend — `rrx-api` · **the critical path**
+
+Everything else depends on it. Start here, get `POST /alerts` returning `202` by end of week 1 even if it only writes to a table.
+
+| Piece | Days | Notes |
+|---|---|---|
+| Scaffold: FastAPI, Docker Compose (api + postgres/postgis + redis), Alembic | 1.5 | |
+| Schema from PRD §9 | 1 | DDL is written; transcribe to SQLAlchemy + migration |
+| `POST /alerts` — validate, dedup on `alert_uuid`, persist, `202` | 1.5 | Idempotency and the never-reject rule (PRD §10.4) |
+| Enrichment: map-match, weather, traffic, cache-first with hard timeouts | 2 | Degrade on timeout, never block |
+| `POST /ingest/sms` — parse `RRX1`, CRC check, HMAC auth | 1 | Treat inbound SMS as untrusted (NFR-S7) |
+| Model B serving: load booster, `/risk/point`, `/risk/route`, `/risk/bbox` | 1.5 | Artifact exists; needs the feature-vector builder |
+| Vector tiles `/risk/tiles/{z}/{x}/{y}.mvt` via `ST_AsMVT` | 1 | |
+| WebSocket `/ws/events` + Redis pub/sub | 1 | |
+| `DispatchGateway` protocol + `SimulatedPmRahatGateway` | 1.5 | Full state machine + failure modes, not a stub (PRD §11.2) |
+| Nearest-responder query | 0.5 | One PostGIS `ST_DWithin` |
+| `/sim/*` demo endpoints | 1 | Env-flag gated |
+| Auth: device JWT + dashboard RBAC | 1.5 | |
+| **Total** | **~15** | |
+
+### 3.2 ETL — corridor data
+
+| Piece | Days | Notes |
+|---|---|---|
+| OSM extract → 500 m segments with geometry attributes | 2 | Geofabrik India, split ways, compute curvature/junctions |
+| Seed `responder_units` from public hospital/ambulance locations | 0.5 | |
+| Load TN district stats + any published blackspot list | 0.5 | `ingest.py` already parses the TN CSV |
+| Nightly `risk_baseline` precompute job | 1 | 168 buckets × segments |
+| **Total** | **~4** | |
+
+> Model B currently trains on a **synthetic segment panel**. For the demo it must serve scores for **real OSM segments** on the chosen corridor. The model retrains unchanged — only `build_panel.py`'s segment source swaps from generated to real geometry.
+
+### 3.3 Android app — `rrx-app` · **longest lead time**
+
+Start in parallel with the backend on day 1; do not wait for the API.
+
+| Piece | Days | Notes |
+|---|---|---|
+| Scaffold, Hilt, Compose, theme from UX §28 tokens | 2 | |
+| Sensing: ring buffer, foreground service, Activity Recognition gating | 3 | |
+| Stage-A gate + drive-session lifecycle | 1 | |
+| **On-device log-mel spectrogram** | **2–3** | See §4.1 — the biggest unplanned item |
+| TFLite runner: assemble 4 inputs, normalise, infer | 2 | Norm stats are in `crash_fusion_norm.npz` |
+| Cancel window screen (UX §15) — full-screen, siren, TTS, volume-key cancel, 800 ms delay | 2.5 | Highest-stakes screen; budget properly |
+| Transport: HTTPS + SMS fallback + WorkManager retry + parallel send on CRITICAL | 2.5 | |
+| Onboarding + consent cards (UX §11), 5 languages | 3 | |
+| Drive mode + Segment Ribbon + risk warnings | 3 | |
+| Sending/Sent/Acknowledged + Golden Hour dial | 1.5 | |
+| Settings, privacy, data deletion | 1.5 | |
+| OEM battery-optimisation flow + verification | 1 | |
+| **Total** | **~25** | |
+
+### 3.4 Dashboard — `rrx-ops`
+
+Fully parallel. Only needs the API contract, which the OpenAPI spec gives on day 2.
+
+| Piece | Days | Notes |
+|---|---|---|
+| Scaffold: Vite, TS, Tailwind, design tokens, theme switching | 1.5 | |
+| Signature components: Milestone Marker, Segment Ribbon, Golden Hour Dial, Channel Badge, **Simulation Seal**, Trace Sparkline, Honesty Bar | 4 | UX §7 specs them fully |
+| Live Operations: map + risk overlay + incident rail + WS | 3 | |
+| Incident detail (UX §22) | 2 | |
+| Risk map + condition simulator + blackspot comparison | 2.5 | The comparison view is the strongest MoRTH argument |
+| Analytics + export | 1.5 | |
+| Simulator console | 1 | |
+| **Total** | **~15.5** | |
+
+### 3.5 Integration, hardening, demo
+
+| Piece | Days |
+|---|---|
+| End-to-end wiring + latency instrumentation against NFR-P4 (≤20 s data / ≤90 s SMS) | 2 |
+| Battery profiling on 3 device tiers (NFR-B1–B4) | 1.5 |
+| k6 load test — 100 alerts/min burst (NFR-P7) | 0.5 |
+| Shake rig / controlled trigger for the live demo | 1 |
+| Playwright E2E demo script + rehearsal | 1.5 |
+| Deck rebuilt against the working system | 1 |
+| **Total** | **~7.5** |
+
+**Grand total ≈ 67 person-days.** At 5 people over 6 weeks (~150 person-days available) that is comfortable — *if* the Android track starts on day 1.
+
+---
+
+## 4. Debt the multi-modal pivot created
+
+Adding the microphone strengthened the model and introduced three problems that the PRD and UX spec do not currently cover. All three are mine to fix.
+
+### 4.1 On-device log-mel — RESOLVED
+
+`crash_fusion_v1.tflite` took **four** inputs, one of which (`mel [1, 64, 126, 1]`) nothing in the PRD's Android stack could compute. Three options were on the table; rather than leave the recommendation abstract, option 1 was built and verified:
+
+**Two risks had to be closed before committing to it, both tested directly rather than assumed:**
+
+1. *Does `tf.signal.stft` convert to standard TFLite ops, or does it pull in the Flex delegate* (a materially heavier mobile runtime)? Tested empirically: the STFT itself converts cleanly to native ops (`tfl.rfft2d`, `tfl.mirror_pad`, etc.) at ~11 KB. One follow-on op (`x[..., tf.newaxis]`) compiled to a generic `StridedSlice` that *did* need Flex — fixed by using `tf.expand_dims` instead, which lowers to the native op used elsewhere in the same graph. Full frontend converts Flex-free.
+2. *Does the graph reproduce what the model was trained on?* `tf.signal.mel_weight_matrix` uses a different mel-scale definition than `librosa.filters.mel` (what generated every training-time spectrogram). Using it would silently retrain the model on a different feature space than what it sees on-device. Fixed by computing the librosa filterbank once in Python and baking it in as a constant matrix — the transform is then identical to training by construction, not merely similar.
+
+**Implementation:** `ml/crash_detection/mel_frontend.py` (`LogMelFrontend` layer) + `ml/crash_detection/model.py` (`build_deployable_model`, `Normalize`) + `ml/crash_detection/export_deployable.py` (the verification gate). Every branch was refactored into a named, reusable Keras sub-model so the deployable graph can reassemble the trained weights around a raw-audio input without retraining.
+
+**A second skew risk was closed at the same time, unprompted by the original plan:** the trained audio branch expects *normalised* mel input. Shipping that as a contract would require the Android app to replicate four different `(x-μ)/σ` steps from a stats file in Kotlin — exactly the class of silent mismatch that caused four rounds of leak-hunting in the crash-detection benchmark (`ml/MODELS.md` §2.6). Normalisation for all four modalities is now baked into the graph as constant weights (`Normalize` layer), so the shipped contract is simply *"feed raw sensor values in their physical units"* — nothing left to get wrong client-side.
+
+**Verified, not assumed.** `export_deployable.py` regenerates fresh held-out synthetic events (same source pools as the real test split, via `build_dataset.partition_sources`, so no leakage), runs them through both the training-time model (precomputed mel) and the deployable model (raw audio → on-device frontend), and asserts they agree before the artifact is allowed to save. A smoke run (3 epochs, small corpus) returned **100% decision agreement, 0.0000 mean probability difference** between the two paths, and **exact match** between the deployable Keras model and its TFLite export. A negative control — deliberately omitting the audio-branch normalisation — confirmed the check actually catches a wiring bug: mean probability difference jumped to 0.33, ~6.7× over the assertion's threshold. Deployable artifact: **299.5 KB** (up from 173 KB — the frontend's own weights, mostly the 64×513 mel filterbank, account for the difference). Final numbers from the full 30k retrain land in `ml/MODELS.md`.
+
+### 4.2 Continuous microphone buffering is a privacy escalation
+
+Detection needs ~4 s of pre-impact audio, which means **continuously buffering the microphone while driving**. That is a materially bigger privacy claim than location + motion, and it is the one most likely to draw objection from a government reviewer or a privacy-conscious user.
+
+Required, none of which exists yet:
+
+- A **sixth consent card** in onboarding (UX §11.3), ordered *last*, after SMS
+- Explicit guarantees, enforced in code: **ring buffer only, never written to disk, never uploaded unless a crash is confirmed, discarded on cancel**
+- The persistent notification must show when the mic is active — Android 12+ shows a mic indicator anyway, so users *will* see it and must have been told why
+- `NFR-PR2` (data minimisation) needs a clause covering audio
+- A visible mic kill-switch in Settings, with honest degradation: detection still works, precision drops
+
+**The app must work with the mic denied.** The degradation results support this — recall held at 1.000 with audio removed. Make that the advertised behaviour, not a hidden fallback.
+
+### 4.3 The PRD's model spec is now stale
+
+PRD §7.1 describes a single-modality 1D-CNN on `200 × 6`, ~45k params. The built model is a four-branch fusion network on `200 × 9` + mel + GPS + tabular, 76,814 params. **Update PRD §7.1 and the architecture diagram before the deck is rebuilt** — the deck currently claims something the code no longer does.
+
+---
+
+## 5. Sequencing
+
+```
+Week 1  backend scaffold + POST /alerts + schema     ─┐
+        android scaffold + sensing ring buffer        ├─ all three parallel
+        dashboard scaffold + design tokens           ─┘
+        [today] git init · SMS receiver · corridor · mel-in-graph decision
+
+Week 2  enrichment + gateway + WS          android: Stage-A + TFLite runner
+        ETL: OSM -> 500m segments          dashboard: components + live map
+
+Week 3  risk endpoints + tiles             android: cancel window + transport
+        Model B retrained on real segments dashboard: incident detail
+
+Week 4  SMS ingest + dedup                 android: onboarding + 5 languages
+        sim endpoints                      dashboard: risk map + comparison
+
+Week 5  integration, latency instrumentation, battery profiling
+        android: drive mode + risk warnings
+
+Week 6  harden, load test, E2E script, rehearse, rebuild deck
+```
+
+**Critical path:** backend `POST /alerts` → Android transport → end-to-end latency. Anything that slips there slips the demo.
+
+---
+
+## 6. Cut list
+
+Explicitly out of MVP. Cutting these is what makes the timeline work.
+
+| Cut | Why safe |
+|---|---|
+| Real ERSS-112 / PM RAHAT integration | No API access. Simulated gateway is the design (PRD §11) |
+| iOS app | iPhone 14+ has native detection; the gap is Android |
+| Play Store release | Side-load for the demo. `SEND_SMS` declaration takes weeks |
+| Real carrier long code | Companion-phone receiver (§2②) |
+| Kubernetes | Docker Compose is sufficient at demo scale |
+| MLflow / feature store | A table plus Redis is enough |
+| >5 languages | Architecture supports 22; ship 5 |
+| Live traffic beyond the demo corridor | Free-tier quota; one corridor only |
+| Two-wheeler detection | PRD Q7 open, different sensor signature — state the scope limit |
+| Model A retraining on real telemetry | Cannot be done in 6 weeks; it is the pilot's first job |
+
+---
+
+## 7. Standing constraint
+
+**Model A must not be connected to anything presented as a real dispatch path** — including the simulated gateway in a public demo — until real crash telemetry exists (`ml/MODELS.md` §6, items 1–3).
+
+For the SIH demo this is satisfiable and honest: trigger via shake rig or the simulator console, show the alert flowing, and label the model as synthetic-data-trained on the slide *and* in the UI. The Simulation Seal (UX §7.5) already covers the gateway; add an equivalent disclosure for the detector itself.
+
+The demo's persuasive power does not depend on claiming detection accuracy. It depends on showing that **a ₹12,000 Android phone in airplane mode can still get a structured, enriched alert into a dispatch pipeline in under 90 seconds.** That claim is true, demonstrable, and does not require the model to be validated.

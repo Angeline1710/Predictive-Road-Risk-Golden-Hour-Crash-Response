@@ -1,0 +1,23 @@
+# Pinned to what was actually used to produce ml/MODELS.md's results.
+# Python 3.12. Install with: pip install -r ml/requirements.txt
+
+numpy==2.5.1
+pandas==3.0.3
+scipy==1.16.3
+scikit-learn==1.9.0
+pyarrow==25.0.1
+matplotlib==3.11.0
+
+# Model A -- crash detection
+tensorflow==2.21.0
+librosa==1.0.0
+soundfile==0.14.0
+
+# Model B -- road risk
+lightgbm==4.7.0
+shap==0.52.0
+
+# NOTE: PRD 6.3/7.2 names XGBoost as a cross-check benchmark for Model B.
+# That comparison was never run -- only LightGBM is implemented in
+# ml/risk_model/train.py. Add `xgboost==2.1.*` and the comparison training
+# loop before claiming the benchmark exists.

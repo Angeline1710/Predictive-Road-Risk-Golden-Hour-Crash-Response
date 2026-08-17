@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ML data & large artifacts -- reproducible via ml/*/*.py, not committed
+ml/data/
+ml/reports/*.log
+*.npz
+*.npy
+
+# Node / web
+node_modules/
+dist/
+build/
+.vite/
+
+# Android
+*.iml
+.gradle/
+/local.properties
+/android/**/build/
+/android/.idea/
+*.apk
+*.aab
+
+# Env / secrets
+.env
+.env.*
+*.pem
+*.key
+!ml/artifacts/**
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
