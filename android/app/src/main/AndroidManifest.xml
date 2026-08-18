@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Permissions listed here match PRD.md §12.1's "Key permissions" line
-  exactly. Only INTERNET is actually exercised by this scaffold's one real
-  network call; the rest are declared now because SEND_SMS and
+  exactly. INTERNET, ACCESS_FINE_LOCATION, ACTIVITY_RECOGNITION,
+  FOREGROUND_SERVICE, FOREGROUND_SERVICE_LOCATION, and POST_NOTIFICATIONS
+  are now exercised by core-sensing's Drive Mode. SEND_SMS,
+  ACCESS_BACKGROUND_LOCATION, RECEIVE_BOOT_COMPLETED, and
+  USE_FULL_SCREEN_INTENT are declared but not yet used. SEND_SMS and
   ACCESS_BACKGROUND_LOCATION need a Play Store permissions declaration
   with a demo video that is "a real, weeks-long gate" (PRD.md §12.1), so
-  the manifest should reflect the target surface area from day one rather
-  than being patched permission-by-permission as sensing/transport land.
-  None of them are runtime-requested yet; that belongs with the feature
-  that actually needs the grant (core-sensing, notifications, etc).
+  the manifest reflects the target surface area from day one rather than
+  being patched permission-by-permission as the remaining tracks land.
 
   usesCleartextTraffic is true because the dev/demo backend
   (backend/docker-compose.yml) serves plain HTTP with no TLS termination;
@@ -46,6 +47,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name="com.rrx.coresensing.DriveSensingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
     </application>
 
