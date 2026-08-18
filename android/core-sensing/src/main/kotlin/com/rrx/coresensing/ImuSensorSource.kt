@@ -32,7 +32,11 @@ class ImuSensorSource(
     private val gyro: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val rawAccelForRail: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
-    private val accelRailG: Float =
+    /** Exposed so a downstream classifier (core-detection) can feed the
+     * exact same rail into its `sat_rail_g` feature -- see
+     * ml/crash_detection/sensors.py's `saturation_features()`, which uses
+     * the device's per-sample rail verbatim, not a re-derived constant. */
+    val accelRailG: Float =
         (rawAccelForRail?.maximumRange ?: (16f * SI_G)) / SI_G
     private val gyroRailDps: Float =
         gyro?.maximumRange?.let { it * RAD2DEG } ?: SensingConfig.GYRO_RAIL_DPS

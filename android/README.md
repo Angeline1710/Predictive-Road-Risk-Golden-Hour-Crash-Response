@@ -27,15 +27,15 @@ tap "Register device."
 
 | Module | State |
 |---|---|
-| `app` | Real: Hilt DI, Compose + Material3 theme transcribed from UX-APPFLOW.md §28/§6, Retrofit client, device registration against the live backend, and a Drive Mode section (permission requests, start/stop, live Stage-A readout) |
-| `core-sensing` | **Real**, 2026-08-18: `ImuRingBuffer` + `StageAGate` (mirrors `ml/crash_detection/build_dataset.py`'s `stage_a_pass()` full/degraded logic exactly, 14 unit tests), `ImuSensorSource` (real SensorManager, TYPE_LINEAR_ACCELERATION + TYPE_GYROSCOPE), `GpsSpeedSource` (FusedLocationProviderClient), `DrivingDetector` (Activity Recognition IN_VEHICLE transitions), `DriveSensingService` (foreground service tying it together). Does **not** invoke a crash classifier or do anything with a confirmed Stage-A trigger yet -- that's core-detection and the cancel-window screen |
-| `core-detection` | Placeholder only. TFLite runner for `ml/artifacts/crash_fusion_deployable_v1.tflite`: not built (~1 person-day) |
+| `app` | Real: Hilt DI, Compose + Material3 theme transcribed from UX-APPFLOW.md §28/§6, Retrofit client, device registration against the live backend, and a Drive Mode section (permission requests, start/stop, live Stage-A + classification readout) |
+| `core-sensing` | **Real**, 2026-08-18: `ImuRingBuffer` + `StageAGate` (mirrors `ml/crash_detection/build_dataset.py`'s `stage_a_pass()` full/degraded logic exactly, 14 unit tests), `ImuSensorSource` (real SensorManager, TYPE_LINEAR_ACCELERATION + TYPE_GYROSCOPE), `GpsSpeedSource` (FusedLocationProviderClient), `DrivingDetector` (Activity Recognition IN_VEHICLE transitions), `DriveSensingService` (foreground service tying it together, publishing raw IMU/GPS window snapshots for core-detection to consume) |
+| `core-detection` | **Real**, 2026-08-19: `TabularFeatures` ports `saturation_features()`/`gps_features()` to Kotlin (2 unit tests, one pinning a hand-computed 26-value example field by field). `CrashClassifier` loads the bundled `crash_fusion_deployable_v1.tflite` and runs it via its real named signature. `app`'s `DriveViewModel` wires the two together: on the rising edge of Stage-A's degraded arm, extracts features and classifies, off the main thread, guarded against concurrent invocation into the same (not thread-safe) `Interpreter` |
 | `core-transport` | Placeholder only. Real HTTPS→SMS channel strategy with retry/parallel-send-on-CRITICAL: not built (~2.5 person-days). `app`'s Retrofit call is explicitly not this — it's one direct call proving the toolchain, not the real transport layer |
 | `core-data` | Placeholder only. Room offline queue, EncryptedSharedPreferences token/medical storage: not built |
 
-Still missing: crash detection itself, the cancel-window screen, transport,
-onboarding, drive-mode UI beyond the raw sensor readout. See
-MVP-PLAN.md §3.3 for what's left and its cost.
+Still missing: the cancel-window screen, transport, onboarding, drive-mode
+UI beyond the raw sensor/classification readout. See MVP-PLAN.md §3.3 for
+what's left and its cost.
 
 ### Sensing scope notes (real limitations, not oversights)
 
@@ -55,6 +55,33 @@ MVP-PLAN.md §3.3 for what's left and its cost.
   always-on transition subscription independent of this service -- the
   remainder of MVP-PLAN.md §3.3's "Stage-A gate + drive-session lifecycle"
   line item.
+
+### Detection scope notes (real limitations, not oversights)
+
+- **No real microphone audio, anywhere, ever, in this build.** There is no
+  consent flow for continuous mic capture (MVP-PLAN.md §4.2). `raw_audio`
+  and the 5 `aud_*` tabular columns are always placeholders --
+  `CrashClassifier`'s doc comment has the full reasoning, including a real
+  bug this verification pass found: feeding the bundled model an *exact*
+  all-zero `raw_audio` tensor produces **NaN on every output** (tested
+  directly against the real artifact, almost certainly `log(0)` in the
+  baked-in mel frontend). Low-amplitude noise avoids it. This means
+  detection quality in this build is IMU/GPS-only -- the condition
+  `ml/MODELS.md` already reports recall holding at 1.000 for.
+- **Severity-class index mapping isn't fully empirically confirmed.**
+  `CrashClassifier` assumes output index 4 of the 5-class severity softmax
+  is the model's explicit NONE class and 0-3 are MINOR/MODERATE/SEVERE/
+  CRITICAL in that order. Index 4 = NONE was confirmed empirically (every
+  negative-class test against the real artifact put all mass there); the
+  positive-class ordering is inferred from `model.py`'s comment and
+  `ml/common/config.py`'s `SEVERITY` list order, not independently
+  triggered, since crafting a properly training-distribution-shaped
+  positive sample was out of scope for this pass.
+- **Never actually run on a device or emulator.** Same caveat as the
+  toolchain-assessment section above -- `gradle assembleDebug` proves the
+  APK packages correctly with the TFLite native runtime and the bundled
+  model asset; it does not prove a real Stage-A trigger on real hardware
+  produces a sane `CrashPrediction`.
 
 ## Known gaps worth knowing about before extending this
 

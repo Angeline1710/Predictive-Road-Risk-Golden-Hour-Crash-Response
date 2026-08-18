@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.rrx.coredetection.CrashPrediction
 import com.rrx.coresensing.DriveSessionState
 
 private fun requiredPermissions(): Array<String> = buildList {
@@ -42,6 +43,7 @@ private fun requiredPermissions(): Array<String> = buildList {
 fun DriveSection(viewModel: DriveViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val state by viewModel.sessionState.collectAsState()
+    val prediction by viewModel.prediction.collectAsState()
 
     var hasPermissions by remember {
         mutableStateOf(
@@ -75,6 +77,7 @@ fun DriveSection(viewModel: DriveViewModel = hiltViewModel()) {
                 )
                 else -> {
                     DriveStateReadout(state)
+                    prediction?.let { PredictionReadout(it) }
                     Button(onClick = viewModel::stopSensing) { Text("Stop sensing") }
                 }
             }
@@ -104,5 +107,22 @@ private fun DriveStateReadout(state: DriveSessionState) {
             }
             else -> Unit
         }
+    }
+}
+
+/**
+ * The most recent [CrashPrediction] from a Stage-A trigger. `raw_audio` is
+ * always noise, never a real microphone signal, in this build -- see
+ * CrashClassifier's doc comment -- so this number is IMU/GPS-driven only,
+ * consistent with `ml/MODELS.md`'s validated no-audio condition.
+ */
+@Composable
+private fun PredictionReadout(prediction: CrashPrediction) {
+    Column(modifier = Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            "Last classification: p_crash=%.3f severity=%s".format(prediction.pCrash, prediction.severity),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+        )
     }
 }

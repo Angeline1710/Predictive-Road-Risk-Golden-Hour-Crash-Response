@@ -13,3 +13,10 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+
+dependencies {
+    // PRD.md §12.1 pins TensorFlow Lite 2.16 for the on-device runtime.
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
+
+    testImplementation("junit:junit:4.13.2")
+}

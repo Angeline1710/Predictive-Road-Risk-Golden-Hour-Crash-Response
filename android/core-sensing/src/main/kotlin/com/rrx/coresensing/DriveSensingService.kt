@@ -69,10 +69,20 @@ class DriveSensingService : LifecycleService() {
         evaluationLoop = lifecycleScope.launch {
             DriveSensingBus.publish(DriveSessionState.WarmingUp)
             while (isActive) {
-                if (imuBuffer.snapshotWindow() != null) {
+                val imuWindow = imuBuffer.snapshotWindow()
+                if (imuWindow != null) {
                     val peak = imuBuffer.peakAccelMagnitudeG()
                     val speed = gpsSource.currentSpeedKmhOrNull()
-                    DriveSensingBus.publish(DriveSessionState.Sensing(peak, speed, StageAGate.evaluate(peak, speed)))
+                    DriveSensingBus.publish(
+                        DriveSessionState.Sensing(
+                            peakAccelG = peak,
+                            speedKmh = speed,
+                            stageA = StageAGate.evaluate(peak, speed),
+                            imuWindow = imuWindow,
+                            gpsWindow = gpsBuffer.snapshotWindow(),
+                            accelRailG = imuSource.accelRailG,
+                        )
+                    )
                 }
                 delay(EVALUATION_INTERVAL_MS)
             }

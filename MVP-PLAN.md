@@ -17,10 +17,10 @@
 | Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Served** — `GET /risk/point`, `GET /risk/bbox` (with segment geometry), wired into alert ingest for `risk_context` |
 | Backend (`rrx-api`) | **Functionally complete for MVP scope**, verified against real Docker containers throughout. `POST/GET /alerts`, `GET /alerts` (list), `POST /ingest/sms` (RRX1 parse + CRC), `POST/GET /devices` (register, heartbeat, count), risk serving, `WS /ws/events`, `/sim/*` demo endpoints, the simulated dispatch gateway. **Not built:** vector tiles (`/risk/tiles`), `/risk/route`, dashboard-facing RBAC (device JWT exists; no operator/analyst login) — see `backend/README.md` |
 | Dashboard (`rrx-ops`) | **Live Operations view built and verified against the real backend**: map with real risk-banded segments, live incident rail (WS-pushed, cold-start via `GET /alerts`), all seven signature components (UX §7), System Honesty Bar wired to real (if sparse) feed status. Incident Detail, Risk Map, Analytics, Simulator console views not yet built — nav rail shows them as disabled, not broken links |
-| Android app (`rrx-app`) | **Toolchain assessed; scaffold and real IMU/GPS sensing built and verified** (no local JDK/SDK on this machine — verified via a throwaway Docker image instead, including 14 passing unit tests for the sensing math). Five-module layout per PRD §12.6; `app` and `core-sensing` have real code -- device registration, and a full Stage-A sensing pipeline (ring buffer, GPS speed, Activity Recognition gating, foreground service). Detection, transport, and data are still placeholder modules — see `android/README.md` |
+| Android app (`rrx-app`) | **Toolchain assessed; sensing and crash classification both built and verified** (no local JDK/SDK on this machine — verified via a throwaway Docker image instead, including 16 passing unit tests). Five-module layout per PRD §12.6; `app`, `core-sensing`, and `core-detection` have real code -- device registration, a full Stage-A sensing pipeline, and a TFLite classifier invoked on every Stage-A trigger, verified against the real bundled model artifact (including a NaN bug in the model's audio frontend found and worked around). Transport and data are still placeholder modules — see `android/README.md` |
 | Version control | **Done.** Pushed to [GitHub](https://github.com/Angeline1710/Predictive-Road-Risk-Golden-Hour-Crash-Response), `main` tracking `origin/main` |
 
-Roughly **60% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, all verified against real Docker containers), a working Live Operations dashboard wired end-to-end to that backend (including a real-time WS path verified live), and now an Android app with a real, unit-tested Stage-A sensing pipeline verified to compile and package into an installable APK. What's left is crash detection, transport, the cancel-window screen, and onboarding on Android (~15.5 person-days) plus the smaller remainders in each other track.
+Roughly **62% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, all verified against real Docker containers), a working Live Operations dashboard wired end-to-end to that backend (including a real-time WS path verified live), and now an Android app that senses driving, evaluates Stage-A, and runs a real on-device classification when it fires -- verified end-to-end against the actual trained model, not just compiled. What's left is transport, the cancel-window screen, and onboarding on Android (~14.5 person-days) plus the smaller remainders in each other track.
 
 ---
 
@@ -89,23 +89,33 @@ Everything else depends on it. **Functionally complete for MVP scope as of 2026-
 
 ### 3.3 Android app — `rrx-app` · **now the critical path**
 
-**Toolchain assessed and scaffold built 2026-08-18; real IMU/GPS sensing landed
-the same day.** This dev machine has no local JDK/Android SDK/Gradle/Android
-Studio — confirmed by checking before writing any code, not assumed. Verified
-instead with a throwaway Docker image (`android/Dockerfile.build-verify`:
-JDK17 + Android SDK 35 + Gradle 8.7) that produced a real, installable
-`app-debug.apk` (~11.3 MB) via `gradle assembleDebug` -- full chain: Kotlin
-compile, Hilt/KSP codegen, resource linking, DEX, packaging, debug signing --
-plus 14 passing JVM unit tests for the sensing math. Real bugs caught and
-fixed by that verification, not by reading the code back: a missing Kotlin-2.0
-Compose-compiler plugin declaration, an XML comment containing `--` (illegal
-per the XML spec, broke manifest merging **twice** -- once in the scaffold
-pass, once again in the sensing pass, a pattern worth grepping for before
-future manifest edits), a wrong import path for `FontFamily`, and a
-`startForeground()` overload that only exists on API 29+ despite this
-project's minSdk 26 -- compiles clean, throws `NoSuchMethodError` at runtime
-on real low-end hardware, and needed a second API-level-aware read to catch
-since compilation alone can't see it. See `android/README.md` for the full
+**Toolchain assessed and scaffold built 2026-08-18; real IMU/GPS sensing and a
+working TFLite classifier landed the same day.** This dev machine has no
+local JDK/Android SDK/Gradle/Android Studio — confirmed by checking before
+writing any code, not assumed. Verified instead with a throwaway Docker image
+(`android/Dockerfile.build-verify`: JDK17 + Android SDK 35 + Gradle 8.7) that
+produced a real, installable `app-debug.apk` (~26.3 MB, up from ~11.3 MB now
+that it bundles the TFLite native runtime and the 300 KB model asset) via
+`gradle assembleDebug` -- full chain: Kotlin compile, Hilt/KSP codegen,
+resource linking, DEX, packaging, debug signing -- plus 16 passing JVM unit
+tests (14 sensing + 2 tabular-feature-extraction, the latter pinning a
+hand-computed 26-value example field by field).
+
+Real bugs caught and fixed along the way, not by reading the code back: a
+missing Kotlin-2.0 Compose-compiler plugin declaration; an XML comment
+containing `--` (illegal per the XML spec) breaking manifest merging
+**twice** -- once in the scaffold pass, once again in the sensing pass, a
+pattern worth grepping for before future manifest edits; a wrong import path
+for `FontFamily`; a `startForeground()` overload that only exists on API 29+
+despite this project's minSdk 26, compiling clean but throwing
+`NoSuchMethodError` on real low-end hardware; and, found by testing the real
+bundled `.tflite` artifact directly with Python rather than assuming its
+behaviour -- **feeding it an all-zero `raw_audio` tensor (exact digital
+silence) produces NaN on every output**, almost certainly a `log(0)`
+singularity in the baked-in mel frontend. Low-amplitude noise instead of
+literal zeros avoids it entirely and was verified against the real model
+before being used as this build's "no microphone yet" placeholder — see
+`CrashClassifier`'s doc comment. See `android/README.md` for the full
 writeup and what's real vs. placeholder per module.
 
 | Piece | Days | Notes |
@@ -114,7 +124,7 @@ writeup and what's real vs. placeholder per module.
 | ~~Sensing: ring buffer, foreground service, Activity Recognition gating~~ | ~~3~~ **0** | **Done and verified.** `ImuRingBuffer` produces the exact (200,9) tensor layout `ml/crash_detection/build_dataset.py` trains on (unit-tested column-by-column); `ImuSensorSource` (real SensorManager), `GpsSpeedSource` (FusedLocationProviderClient), `DrivingDetector` (Activity Recognition IN_VEHICLE transitions), and `DriveSensingService` (foreground service) all compile and package against real Android APIs. Accelerometer clip-mask is a documented approximation (raw accelerometer's hardware rail applied to the gravity-removed linear-acceleration signal) -- see `android/README.md` |
 | Stage-A gate + drive-session lifecycle | 0.5 | **The gate itself is done** -- `StageAGate` mirrors `stage_a_pass()`'s full/degraded logic exactly (5 unit tests covering the GPS-unavailable case). What's left: always-on driving detection independent of the app being open (`RECEIVE_BOOT_COMPLETED` + a persistent transition subscription) -- this scaffold only reacts to IN_VEHICLE transitions while manually started |
 | ~~On-device log-mel spectrogram~~ | ~~2–3~~ **0** | **Resolved server-side, not an Android task.** §4.1 — the mel computation is baked into the TFLite graph itself; the app records raw audio and passes the byte buffer straight to the interpreter. No Kotlin DSP, no FFT library, no filterbank to get wrong |
-| TFLite runner: assemble 4 raw inputs, invoke, parse two outputs | 1 | Was "assemble + normalise + infer" (2 days) — **normalisation is also baked into the graph now** (`Normalize` layer), so this is just marshalling arrays, not replicating `(x-μ)/σ` math from `crash_fusion_norm.npz`. `core-detection` is a placeholder module. `ImuRingBuffer`/`GpsSpeedBuffer` already produce this task's `imu`/`gps` inputs in the right shape -- only `raw_audio` capture and the TFLite invoke/parse remain |
+| ~~TFLite runner: assemble 4 raw inputs, invoke, parse two outputs~~ | ~~1~~ **0** | **Done and verified against the real bundled artifact**, not just compiled. `TabularFeatures` ports `saturation_features()`/`gps_features()` to Kotlin (21 of 26 `tab` columns; column order confirmed by running the actual Python functions through `pd.DataFrame`, not read off the source). `CrashClassifier` loads `crash_fusion_deployable_v1.tflite` from assets and invokes it via its real named signature (`imu`/`gps`/`tab`/`raw_audio` → `crash`/`severity`), confirmed against `interp.get_signature_list()` on the actual file. `raw_audio` and the 5 `aud_*` tab columns are always placeholder (no mic capture -- §4.2) rather than real audio features; `train.py`'s own inference-degradation harness states zeroing is what `ModalityDropout` trained for, so the 5 tab columns are exact zero, while `raw_audio` itself uses low-amplitude noise instead of exact zero for the NaN reason above. Severity-class-index mapping (0-3 = MINOR..CRITICAL, 4 = NONE) is confirmed for the NONE case empirically, inferred from `model.py`'s comment for the positive classes -- a properly training-distribution-shaped positive sample wasn't crafted in this pass |
 | Cancel window screen (UX §15) — full-screen, siren, TTS, volume-key cancel, 800 ms delay | 2.5 | Highest-stakes screen; budget properly |
 | Transport: HTTPS + SMS fallback + WorkManager retry + parallel send on CRITICAL | 2.5 | `core-transport` is a placeholder module. The scaffold's `app/network/RrxApi.kt` makes one direct Retrofit call (device registration) to prove the DTO contract, which is explicitly not this |
 | Onboarding + consent cards (UX §11), 5 languages | 3 | |
@@ -122,7 +132,7 @@ writeup and what's real vs. placeholder per module.
 | Sending/Sent/Acknowledged + Golden Hour dial | 1.5 | |
 | Settings, privacy, data deletion | 1.5 | Includes `core-data`'s Room offline queue + `EncryptedSharedPreferences` (currently a placeholder module) |
 | OEM battery-optimisation flow + verification | 1 | |
-| **Total** | **~15.5** | down from ~19 — sensing (3 days) is done, Stage-A gate reduced to just the boot-time remainder |
+| **Total** | **~14.5** | down from ~19 — sensing (3 days) and the TFLite runner (1 day) are done, Stage-A gate reduced to just the boot-time remainder |
 
 ### 3.4 Dashboard — `rrx-ops`
 
@@ -151,7 +161,7 @@ writeup and what's real vs. placeholder per module.
 | Deck rebuilt against the working system — architecture slide, model params, artifact size all changed since the original deck (§4.3) | 1 |
 | **Total** | **~7.5** |
 
-**Grand total ≈ 36.5 person-days** (backend 2.5 + ETL 4 + Android 15.5 + dashboard 7 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **Android is still the critical path** — real sensing now exists, but crash detection, transport, the cancel-window screen, and onboarding are the bulk of what's left everywhere in the plan.
+**Grand total ≈ 35.5 person-days** (backend 2.5 + ETL 4 + Android 14.5 + dashboard 7 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **Android is still the critical path** — sensing and classification both now work end-to-end (IMU/GPS in, a real Stage-A-triggered TFLite score out), but transport, the cancel-window screen, and onboarding are the bulk of what's left.
 
 ---
 
@@ -208,9 +218,10 @@ Week 2  [done] enrichment + gateway + WS + risk endpoints + SMS ingest + sim
         [done] dashboard: Live Operations (map + risk overlay + incident rail + WS)
         [done] android: core-sensing (IMU ring buffer, GPS, Stage-A gate,
                Activity Recognition, foreground service -- 14 unit tests)
-        android: TFLite runner                          <- now the whole week's work
+        [done] android: core-detection (TabularFeatures + CrashClassifier,
+               verified against the real .tflite artifact -- 16 unit tests)
 
-Week 3  android: cancel window + transport
+Week 3  android: cancel window + transport               <- now the whole week's work
         dashboard: incident detail (remaining ~2 days of §3.4)
 
 Week 4  android: onboarding + 5 languages

@@ -38,6 +38,13 @@ android {
             isMinifyEnabled = false // R8 tuning deferred past this scaffold
         }
     }
+
+    // core-detection's bundled .tflite must stay uncompressed in the APK --
+    // the TFLite interpreter mmaps it directly (zero-copy), which a
+    // compressed asset entry doesn't support.
+    androidResources {
+        noCompress += "tflite"
+    }
 }
 
 dependencies {
