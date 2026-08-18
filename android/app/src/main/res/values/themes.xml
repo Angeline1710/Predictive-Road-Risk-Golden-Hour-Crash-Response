@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Activity window theme Android needs before Compose's own
+         Material3 theme (ui/theme/Theme.kt, UX-APPFLOW.md §28 tokens)
+         takes over rendering. Kept minimal on purpose. -->
+    <style name="Theme.Rrx" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

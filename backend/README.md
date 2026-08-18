@@ -6,9 +6,12 @@ that document is the source of truth; this README is just how to run it.
 
 ## Status
 
-Scaffold + `POST /alerts` end to end, verified against real PostGIS/Redis via
-Docker Compose (not mocked). Everything else in PRD §10 is not yet built --
-see `../MVP-PLAN.md` §3.1 for the remaining endpoint list and effort estimate.
+Functionally complete for MVP scope. Alert ingest (HTTPS + SMS), Model B risk
+serving, device registration, the WebSocket event feed, and the `/sim/*` demo
+endpoints all work end to end, verified against real PostGIS/Redis via Docker
+Compose (not mocked) -- including live verification against the `web/`
+dashboard's Live Operations view. What's left: vector tiles, `/risk/route`,
+and dashboard-facing RBAC. See `../MVP-PLAN.md` §3.1 for the remainder.
 
 ## Run it
 
@@ -62,14 +65,17 @@ call to the dispatch gateway.
 | Piece | Status |
 |---|---|
 | Schema (14 tables, PRD §9) | Real, migrated, verified |
-| `POST /alerts` | Real: persists, map-matches, dispatches, idempotent |
+| `POST /alerts`, `GET /alerts/{uuid}`, `GET /alerts` (list) | Real: persists, map-matches, scores, dispatches, idempotent. List endpoint is a cold-start snapshot for the dashboard rail, not paginated -- see its docstring |
+| `POST /ingest/sms` | Real: parses the RRX1 wire protocol, CRC-checks, mirrors the HTTPS ingest pipeline. The PRD's own worked-example CRC doesn't reproduce under CRC-8/ATM or 9 other tested variants -- documented in `app/services/sms_protocol.py` as a PRD placeholder-text issue, not a bug here |
+| `GET /risk/point`, `GET /risk/bbox` | Real: loads `risk_model_v1.txt` (LightGBM), returns score/band/SHAP top-3 **and segment geometry** (added for the dashboard's map overlay). `/risk/route`, `/risk/tiles` still absent -- left unimplemented rather than stubbed with fake data |
 | `SimulatedPmRahatGateway` | Real state machine + PostGIS nearest-responder + injectable failure modes (`GatewayModeState`), per PRD §11.2 |
-| Map-matching | Real PostGIS query against `road_segments` (empty until ETL) |
-| Risk context | Reads `risk_baseline` if precomputed; **nightly precompute job not built** |
-| Weather/traffic enrichment | **Not implemented** -- external API integration is separate scoped work (MVP-PLAN §3.2) |
-| `/devices/register`, `/risk/*`, `/dashboard/*`, `/ws/events`, `/sim/*` | **Not implemented** -- PRD §10.1-10.3 lists them; none exist yet |
-| Redis | Configured, not yet used (no caching/pub-sub wired up) |
-| Auth | Not implemented -- every route is currently open |
+| `POST /devices/register`, `POST /devices/{id}/heartbeat`, `GET /devices/count` | Real. Heartbeat is the only route gated by device JWT so far |
+| `WS /ws/events` | Real Redis pub/sub fan-out, verified live against the dashboard (a `curl`'d `/sim/crash` appeared in the rail with no page reload) |
+| `/sim/*` | Real, env-flag gated (`RRX_DEMO_MODE`) |
+| Map-matching | Real PostGIS query against `road_segments`, populated by the ETL (`../etl/`) |
+| Weather/traffic enrichment | Map-match is real; weather/traffic external API calls honestly degrade to "unavailable" -- no API key configured, by design not oversight |
+| `/risk/route`, `/risk/tiles`, dashboard-facing RBAC | **Not implemented.** Device JWT exists; there is no operator/analyst login, so every dashboard-facing route is open |
+| Redis | Used for alert dedup (SETNX), the durable never-reject fallback queue, and WS pub/sub |
 
 ## Repository layout
 

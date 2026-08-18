@@ -10,3 +10,11 @@
 *.keras -text
 *.npz -text
 *.npy -text
+
+# The Gradle wrapper jar is a zip binary; the wrapper scripts are shell/batch
+# text that must keep their native line endings (a CRLF-converted `gradlew`
+# fails to execute on Linux/macOS, the same class of bug the model artifacts
+# above were fixed for).
+android/gradle/wrapper/gradle-wrapper.jar -text
+android/gradlew text eol=lf
+android/gradlew.bat text eol=crlf

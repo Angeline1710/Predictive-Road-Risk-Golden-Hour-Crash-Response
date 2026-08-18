@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Date** | 2026-08-17 |
+| **Date** | 2026-08-18 |
 | **Companions** | `PRD.md` · `UX-APPFLOW.md` · `ml/MODELS.md` |
 | **MVP definition** | **Demo-complete for SIH 2026** — the seven-step jury walkthrough in PRD §16.2 runs end to end on real hardware. *Not* a pilot, not Play Store ready. |
 
@@ -17,10 +17,10 @@
 | Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Served** — `GET /risk/point`, `GET /risk/bbox` (with segment geometry), wired into alert ingest for `risk_context` |
 | Backend (`rrx-api`) | **Functionally complete for MVP scope**, verified against real Docker containers throughout. `POST/GET /alerts`, `GET /alerts` (list), `POST /ingest/sms` (RRX1 parse + CRC), `POST/GET /devices` (register, heartbeat, count), risk serving, `WS /ws/events`, `/sim/*` demo endpoints, the simulated dispatch gateway. **Not built:** vector tiles (`/risk/tiles`), `/risk/route`, dashboard-facing RBAC (device JWT exists; no operator/analyst login) — see `backend/README.md` |
 | Dashboard (`rrx-ops`) | **Live Operations view built and verified against the real backend**: map with real risk-banded segments, live incident rail (WS-pushed, cold-start via `GET /alerts`), all seven signature components (UX §7), System Honesty Bar wired to real (if sparse) feed status. Incident Detail, Risk Map, Analytics, Simulator console views not yet built — nav rail shows them as disabled, not broken links |
-| Android app | **Nothing exists** |
+| Android app (`rrx-app`) | **Toolchain assessed, scaffold built and verified compiling+packaging into a real APK** (no local JDK/SDK on this machine — verified via a throwaway Docker image instead). Five-module layout per PRD §12.6; only `app` has real code (Hilt DI, Compose theme, one screen that registers the device against the live backend). Sensing, detection, transport, and data are placeholder modules — see `android/README.md` |
 | Version control | **Done.** Pushed to [GitHub](https://github.com/Angeline1710/Predictive-Road-Risk-Golden-Hour-Crash-Response), `main` tracking `origin/main` |
 
-Roughly **55% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, all verified against real Docker containers), and a working Live Operations dashboard wired end-to-end to that backend, including a real-time WS path (crash simulated via curl appeared in the rail with no page reload, sorted correctly). Android is still at zero — that's next, and it's the longest lead time in the plan.
+Roughly **57% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, all verified against real Docker containers), a working Live Operations dashboard wired end-to-end to that backend (including a real-time WS path verified live), and now an Android scaffold verified to actually compile and package into an installable APK. What's left is almost entirely Android's sensing/detection/transport/UI work (~19 person-days) plus the smaller remainders in each other track.
 
 ---
 
@@ -87,25 +87,36 @@ Everything else depends on it. **Functionally complete for MVP scope as of 2026-
 
 > Model B currently trains on a **synthetic segment panel**. For the demo it must serve scores for **real OSM segments** on the chosen corridor. The model retrains unchanged — only `build_panel.py`'s segment source swaps from generated to real geometry.
 
-### 3.3 Android app — `rrx-app` · **longest lead time**
+### 3.3 Android app — `rrx-app` · **now the critical path**
 
-Start in parallel with the backend on day 1; do not wait for the API.
+**Toolchain assessed and scaffold built 2026-08-18.** This dev machine has no
+local JDK/Android SDK/Gradle/Android Studio — confirmed by checking before
+writing any code, not assumed. Verified instead with a throwaway Docker image
+(`android/Dockerfile.build-verify`: JDK17 + Android SDK 35 + Gradle 8.7) that
+produced a real, installable `app-debug.apk` (~10.7 MB) via `gradle
+assembleDebug` -- full chain: Kotlin compile, Hilt/KSP codegen, resource
+linking, DEX, packaging, debug signing. Three real bugs were caught and fixed
+by that verification, not by reading the code back: a missing Kotlin-2.0
+Compose-compiler plugin declaration, an XML comment containing `--` (illegal
+per the XML spec) that broke manifest merging, and a wrong import path for
+`FontFamily`. See `android/README.md` for the full toolchain-assessment
+writeup and what's real vs. placeholder per module.
 
 | Piece | Days | Notes |
 |---|---|---|
-| Scaffold, Hilt, Compose, theme from UX §28 tokens | 2 | |
-| Sensing: ring buffer, foreground service, Activity Recognition gating | 3 | |
+| ~~Scaffold, Hilt, Compose, theme from UX §28 tokens~~ | ~~2~~ **0** | **Done and verified compiling+packaging.** Five-module layout per PRD §12.6 (`app`, `core-sensing`, `core-detection`, `core-transport`, `core-data`); only `app` has real code -- one working screen that registers the device against the live backend (`POST /v1/devices/register`, DTOs matching `backend/app/schemas/device.py` field-for-field). No embedded fonts yet (falls back to platform defaults) and no committed gradle wrapper binaries -- see `android/README.md`'s gap list |
+| Sensing: ring buffer, foreground service, Activity Recognition gating | 3 | `core-sensing` is a placeholder module (see its `Placeholder.kt`) |
 | Stage-A gate + drive-session lifecycle | 1 | |
 | ~~On-device log-mel spectrogram~~ | ~~2–3~~ **0** | **Resolved server-side, not an Android task.** §4.1 — the mel computation is baked into the TFLite graph itself; the app records raw audio and passes the byte buffer straight to the interpreter. No Kotlin DSP, no FFT library, no filterbank to get wrong |
-| TFLite runner: assemble 4 raw inputs, invoke, parse two outputs | 1 | Was "assemble + normalise + infer" (2 days) — **normalisation is also baked into the graph now** (`Normalize` layer), so this is just marshalling arrays, not replicating `(x-μ)/σ` math from `crash_fusion_norm.npz` |
+| TFLite runner: assemble 4 raw inputs, invoke, parse two outputs | 1 | Was "assemble + normalise + infer" (2 days) — **normalisation is also baked into the graph now** (`Normalize` layer), so this is just marshalling arrays, not replicating `(x-μ)/σ` math from `crash_fusion_norm.npz`. `core-detection` is a placeholder module |
 | Cancel window screen (UX §15) — full-screen, siren, TTS, volume-key cancel, 800 ms delay | 2.5 | Highest-stakes screen; budget properly |
-| Transport: HTTPS + SMS fallback + WorkManager retry + parallel send on CRITICAL | 2.5 | |
+| Transport: HTTPS + SMS fallback + WorkManager retry + parallel send on CRITICAL | 2.5 | `core-transport` is a placeholder module. The scaffold's `app/network/RrxApi.kt` makes one direct Retrofit call (device registration) to prove the DTO contract, which is explicitly not this |
 | Onboarding + consent cards (UX §11), 5 languages | 3 | |
 | Drive mode + Segment Ribbon + risk warnings | 3 | |
 | Sending/Sent/Acknowledged + Golden Hour dial | 1.5 | |
-| Settings, privacy, data deletion | 1.5 | |
+| Settings, privacy, data deletion | 1.5 | Includes `core-data`'s Room offline queue + `EncryptedSharedPreferences` (currently a placeholder module) |
 | OEM battery-optimisation flow + verification | 1 | |
-| **Total** | **~21** | down from ~25 — the mel/normalisation resolution bought back ~4 days |
+| **Total** | **~19** | down from ~21 — the scaffold (2 days) is done and verified |
 
 ### 3.4 Dashboard — `rrx-ops`
 
@@ -134,7 +145,7 @@ Start in parallel with the backend on day 1; do not wait for the API.
 | Deck rebuilt against the working system — architecture slide, model params, artifact size all changed since the original deck (§4.3) | 1 |
 | **Total** | **~7.5** |
 
-**Grand total ≈ 42 person-days** (backend 2.5 + ETL 4 + Android 21 + dashboard 7 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **Android is now unambiguously the critical path** — everything else is either done or has a clear, small remainder.
+**Grand total ≈ 40 person-days** (backend 2.5 + ETL 4 + Android 19 + dashboard 7 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **Android is now unambiguously the critical path** — everything else is either done or has a clear, small remainder.
 
 ---
 
@@ -182,14 +193,14 @@ PRD §7.1 described a single-modality 1D-CNN on `200 × 6`, ~45k params. The bui
 ```
 Week 1  [done] backend scaffold + POST /alerts + schema
         [done] dashboard scaffold + design tokens + signature components
-        android scaffold + sensing ring buffer         <- now the whole week's work
+        [done] android toolchain assessment + scaffold (verified: real APK)
         [done] git init + push · corridor frozen · mel-in-graph resolved
         [still open] SMS companion-phone receiver (§2②)
 
 Week 2  [done] enrichment + gateway + WS + risk endpoints + SMS ingest + sim
         [done] ETL: OSM -> 500m segments (real NH-45/Chengalpattu corridor)
         [done] dashboard: Live Operations (map + risk overlay + incident rail + WS)
-        android: Stage-A + TFLite runner
+        android: sensing ring buffer + Stage-A + TFLite runner   <- now the whole week's work
 
 Week 3  android: cancel window + transport
         dashboard: incident detail (remaining ~2 days of §3.4)
