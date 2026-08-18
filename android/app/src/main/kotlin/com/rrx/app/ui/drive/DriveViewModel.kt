@@ -3,6 +3,7 @@ package com.rrx.app.ui.drive
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.rrx.app.crash.CrashTriggerNotifier
 import com.rrx.coredetection.CrashClassifier
 import com.rrx.coredetection.CrashPrediction
 import com.rrx.coredetection.TabularFeatures
@@ -64,7 +65,9 @@ class DriveViewModel @Inject constructor(
             viewModelScope.launch(Dispatchers.Default) {
                 try {
                     val tab = TabularFeatures.extract(state.imuWindow, state.accelRailG, gpsWindow)
-                    _prediction.value = classifierLazy.value.classify(state.imuWindow, gpsWindow, tab)
+                    val prediction = classifierLazy.value.classify(state.imuWindow, gpsWindow, tab)
+                    _prediction.value = prediction
+                    CrashTriggerNotifier.maybeTrigger(application, state, prediction)
                 } finally {
                     isClassifying.set(false)
                 }

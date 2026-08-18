@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Date** | 2026-08-18 |
+| **Date** | 2026-08-19 |
 | **Companions** | `PRD.md` · `UX-APPFLOW.md` · `ml/MODELS.md` |
 | **MVP definition** | **Demo-complete for SIH 2026** — the seven-step jury walkthrough in PRD §16.2 runs end to end on real hardware. *Not* a pilot, not Play Store ready. |
 
@@ -17,10 +17,10 @@
 | Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Served** — `GET /risk/point`, `GET /risk/bbox` (with segment geometry), wired into alert ingest for `risk_context` |
 | Backend (`rrx-api`) | **Functionally complete for MVP scope**, verified against real Docker containers throughout. `POST/GET /alerts`, `GET /alerts` (list), `POST /ingest/sms` (RRX1 parse + CRC), `POST/GET /devices` (register, heartbeat, count), risk serving, `WS /ws/events`, `/sim/*` demo endpoints, the simulated dispatch gateway. **Not built:** vector tiles (`/risk/tiles`), `/risk/route`, dashboard-facing RBAC (device JWT exists; no operator/analyst login) — see `backend/README.md` |
 | Dashboard (`rrx-ops`) | **Live Operations view built and verified against the real backend**: map with real risk-banded segments, live incident rail (WS-pushed, cold-start via `GET /alerts`), all seven signature components (UX §7), System Honesty Bar wired to real (if sparse) feed status. Incident Detail, Risk Map, Analytics, Simulator console views not yet built — nav rail shows them as disabled, not broken links |
-| Android app (`rrx-app`) | **Toolchain assessed; sensing, crash classification, and transport all built and verified** (no local JDK/SDK on this machine — verified via a throwaway Docker image instead, including 19 passing unit tests). Five-module layout per PRD §12.6; `app`, `core-sensing`, `core-detection`, and `core-transport` have real code -- device registration, a full Stage-A sensing pipeline, a TFLite classifier invoked on every Stage-A trigger (verified against the real bundled model artifact, including a NaN bug in the model's audio frontend found and worked around), and an HTTPS/SMS channel-strategy transport layer whose wire format was confirmed with `curl` against the live backend. Only `core-data` is still a placeholder module — see `android/README.md` |
+| Android app (`rrx-app`) | **Toolchain assessed; sensing, crash classification, transport, and the cancel-window screen (§15-17) all built and verified** (no local JDK/SDK on this machine — verified via a throwaway Docker image instead, including 19 passing unit tests, a `compileDebugKotlin`+`testDebugUnitTest`+`assembleDebug` pass, and two real bugs the verification itself caught: a recurring XML `--`-in-comment manifest bug, and a missing `androidx.compose.runtime.getValue` import for a `by animateFloatAsState()` delegate). Five-module layout per PRD §12.6; `app`, `core-sensing`, `core-detection`, and `core-transport` have real code -- device registration, a full Stage-A sensing pipeline, a TFLite classifier invoked on every Stage-A trigger (verified against the real bundled model artifact, including a NaN bug in the model's audio frontend found and worked around), an HTTPS/SMS channel-strategy transport layer whose wire format was confirmed with `curl` against the live backend, and now a full-screen crash countdown that a real on-device `CrashPrediction.pCrash` crossing the model's own decision threshold (0.297) launches via `CrashTriggerNotifier`'s full-screen-intent notification. Only `core-data` is still a placeholder module — see `android/README.md` |
 | Version control | **Done.** Pushed to [GitHub](https://github.com/Angeline1710/Predictive-Road-Risk-Golden-Hour-Crash-Response), `main` tracking `origin/main` |
 
-Roughly **64% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, all verified against real Docker containers), a working Live Operations dashboard wired end-to-end to that backend (including a real-time WS path verified live), and now an Android app whose sensing, on-device classification, and network/SMS transport all work end to end and are each verified against something real -- the trained model artifact, the live backend, or both. What's left is the cancel-window screen and onboarding on Android (~12 person-days) plus the smaller remainders in each other track.
+Roughly **68% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, all verified against real Docker containers), a working Live Operations dashboard wired end-to-end to that backend (including a real-time WS path verified live), and now an Android app whose sensing, on-device classification, transport, and cancel-window screen all work end to end and are each verified against something real -- the trained model artifact, the live backend, or a real Docker compile+test+assemble pass. What's left is onboarding and Drive Mode's real UI on Android (~8 person-days) plus the smaller remainders in each other track.
 
 ---
 
@@ -135,14 +135,14 @@ vs. placeholder per module.
 | Stage-A gate + drive-session lifecycle | 0.5 | **The gate itself is done** -- `StageAGate` mirrors `stage_a_pass()`'s full/degraded logic exactly (5 unit tests covering the GPS-unavailable case). What's left: always-on driving detection independent of the app being open (`RECEIVE_BOOT_COMPLETED` + a persistent transition subscription) -- this scaffold only reacts to IN_VEHICLE transitions while manually started |
 | ~~On-device log-mel spectrogram~~ | ~~2–3~~ **0** | **Resolved server-side, not an Android task.** §4.1 — the mel computation is baked into the TFLite graph itself; the app records raw audio and passes the byte buffer straight to the interpreter. No Kotlin DSP, no FFT library, no filterbank to get wrong |
 | ~~TFLite runner: assemble 4 raw inputs, invoke, parse two outputs~~ | ~~1~~ **0** | **Done and verified against the real bundled artifact**, not just compiled. `TabularFeatures` ports `saturation_features()`/`gps_features()` to Kotlin (21 of 26 `tab` columns; column order confirmed by running the actual Python functions through `pd.DataFrame`, not read off the source). `CrashClassifier` loads `crash_fusion_deployable_v1.tflite` from assets and invokes it via its real named signature (`imu`/`gps`/`tab`/`raw_audio` → `crash`/`severity`), confirmed against `interp.get_signature_list()` on the actual file. `raw_audio` and the 5 `aud_*` tab columns are always placeholder (no mic capture -- §4.2) rather than real audio features; `train.py`'s own inference-degradation harness states zeroing is what `ModalityDropout` trained for, so the 5 tab columns are exact zero, while `raw_audio` itself uses low-amplitude noise instead of exact zero for the NaN reason above. Severity-class-index mapping (0-3 = MINOR..CRITICAL, 4 = NONE) is confirmed for the NONE case empirically, inferred from `model.py`'s comment for the positive classes -- a properly training-distribution-shaped positive sample wasn't crafted in this pass |
-| Cancel window screen (UX §15) — full-screen, siren, TTS, volume-key cancel, 800 ms delay | 2.5 | Highest-stakes screen; budget properly |
+| ~~Cancel window screen (UX §15) — full-screen, siren, TTS, volume-key cancel, 800 ms delay~~ | ~~2.5~~ **0** | **Done and verified via Docker (compile, 19 unit tests, `assembleDebug`).** `CrashCountdownScreen` renders the full-bleed sodium ground (600 for CRITICAL, 500 otherwise), 200sp numeral, drain bar, and the one 96dp cancel button with an 800ms-delayed enable (`CrashAudioController`: `ToneGenerator` + `TextToSpeech` on `STREAM_ALARM`; `CrashHapticController`: 200ms/800ms waveform). `CrashCountdownActivity` hosts it with real lock-screen bypass (`setShowWhenLocked`/`setTurnScreenOn` API 27+, window flags below that), forced max brightness, and volume-key cancel. `CrashTriggerNotifier` (new, in `app`) fires when `DriveViewModel`'s live `CrashPrediction.pCrash` crosses the real model threshold (0.29719674587249756, from `ml/reports/crash_detection_results.json`), posting a full-screen-intent notification -- the only way to launch an Activity from `DriveSensingService`'s background context on Android 10+. CRITICAL alone (not the full "no post-impact motion + phone not picked up") triggers the 5s window; the rest get 10s -- a documented simplification, since post-impact motion and pickup detection aren't wired. Never run on a device -- see `android/README.md` |
 | ~~Transport: HTTPS + SMS fallback + WorkManager retry + parallel send on CRITICAL~~ | ~~2.5~~ **0** | **Done and verified against the real backend**, not just compiled. `Rrx1Codec` ports `encode_rrx1()`/`crc8_atm()` to Kotlin -- verified byte-for-byte against two concrete outputs from the real Python implementation (65-bit UUID prefix via `BigInteger`, Crockford base32, CRC-8/ATM, negative-coordinate and all-flags cases all covered). `AlertTransport` implements PRD §6.2's exact channel strategy (HTTPS 6s deadline, SMS 15s deadline, parallel-not-sequential on CRITICAL) and enqueues `AlertSendWorker` (plain `CoroutineWorker`, no Hilt-Work wiring -- a deliberate simplification, see `android/README.md`) for up to 24h of exponential-backoff retry when the immediate HTTPS attempt fails. The exact JSON `AlertCreateDto` produces was POSTed to the real running backend with `curl` and returned a real `202` with a simulated dispatch -- the wire contract is confirmed, not assumed. Channel 3 (local escalation: siren, emergency contacts, one-tap call-112) is out of scope here -- it's a UI/notification concern, tracked with the cancel-window screen below |
 | Onboarding + consent cards (UX §11), 5 languages | 3 | |
 | Drive mode + Segment Ribbon + risk warnings | 3 | The live Stage-A readout in `app`'s Drive Mode section is a debug view, not this screen -- UX §13's actual Drive Mode (map, Segment Ribbon, risk warnings) is unbuilt |
-| Sending/Sent/Acknowledged + Golden Hour dial | 1.5 | |
+| ~~Sending/Sent/Acknowledged + Golden Hour dial~~ | ~~1.5~~ **0** | **Done, simplified.** `CancelledScreen` (§16) and `SendingScreen` (§17) built; the feedback micro-survey and the full radial Golden-Hour dial are out of scope -- `SendingScreen` shows a numeral-only countup/countdown instead, and the channel outcome is a 2-state summary (`AlertTransport.send()` returns one final result, not a progress stream, so there's no per-node timestamp to show). The mandatory Simulation Seal is shown unconditionally on the Sent state |
 | Settings, privacy, data deletion | 1.5 | Includes `core-data`'s Room offline queue + `EncryptedSharedPreferences` (currently a placeholder module) |
 | OEM battery-optimisation flow + verification | 1 | |
-| **Total** | **~12** | down from ~19 — sensing (3 days), the TFLite runner (1 day), and transport (2.5 days) are done, Stage-A gate reduced to just the boot-time remainder |
+| **Total** | **~8** | down from ~19 — sensing (3 days), the TFLite runner (1 day), transport (2.5 days), the cancel-window screen (2.5 days), and Sending/Sent/Acknowledged (1.5 days) are all done; Stage-A gate reduced to just the boot-time remainder |
 
 ### 3.4 Dashboard — `rrx-ops`
 
@@ -171,7 +171,7 @@ vs. placeholder per module.
 | Deck rebuilt against the working system — architecture slide, model params, artifact size all changed since the original deck (§4.3) | 1 |
 | **Total** | **~7.5** |
 
-**Grand total ≈ 33 person-days** (backend 2.5 + ETL 4 + Android 12 + dashboard 7 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **Android is still the critical path** — sensing, classification, and transport now all work end-to-end and verified against the real backend, but the cancel-window screen and onboarding are the bulk of what's left, and the cancel-window screen in particular is the one piece that actually produces a real (non-simulated) alert payload for transport to send.
+**Grand total ≈ 29 person-days** (backend 2.5 + ETL 4 + Android 8 + dashboard 7 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **Android is still the critical path** — sensing, classification, transport, and now the cancel-window screen (§15-17) all work end-to-end, the last of them producing a real (non-simulated) alert payload from a real on-device trigger, not a demo button. Onboarding, Drive Mode's real UI (map, Segment Ribbon, risk warnings), and `core-data`'s offline queue/secure storage are the bulk of what's left.
 
 ---
 
@@ -233,20 +233,23 @@ Week 2  [done] enrichment + gateway + WS + risk endpoints + SMS ingest + sim
         [done] android: core-transport (RRX1 codec + AlertTransport +
                WorkManager retry, verified against the live backend --
                19 unit tests total)
+        [done] android: cancel window (§15-17 -- countdown, cancel,
+               sending/sent screens, real trigger wiring from
+               DriveViewModel via full-screen-intent notification)
 
-Week 3  android: cancel window                           <- now the whole week's work
+Week 3  android: onboarding + 5 languages
         dashboard: incident detail (remaining ~2 days of §3.4)
 
-Week 4  android: onboarding + 5 languages
+Week 4  android: drive mode + risk warnings (real UI, not the debug readout)
         dashboard: risk map + comparison, analytics, simulator console
 
 Week 5  integration, latency instrumentation, battery profiling
-        android: drive mode + risk warnings
+        android: core-data (offline queue, secure storage), settings
 
 Week 6  harden, load test, E2E script, rehearse, rebuild deck
 ```
 
-**Critical path is now Android**, full stop — backend and the Live Operations dashboard are both verified against real infrastructure and each other. Anything that slips the Android sensing/transport/cancel-window work slips the demo; the remaining dashboard views (§3.4) can slip a week without touching the PRD §16.2 walkthrough, which only needs Live Operations to be real.
+**Critical path is now Android**, full stop — backend and the Live Operations dashboard are both verified against real infrastructure and each other. Anything that slips the Android onboarding/drive-mode work slips the demo; the remaining dashboard views (§3.4) can slip a week without touching the PRD §16.2 walkthrough, which only needs Live Operations to be real.
 
 ---
 

@@ -24,10 +24,14 @@ sealed interface DriveSessionState {
          * of fixes. */
         val gpsWindow: FloatArray?,
         val accelRailG: Float,
+        /** The latest full location fix -- null under the same conditions
+         * as [gpsWindow]. A real alert payload needs lat/lon, which
+         * [speedKmh] alone can't provide. */
+        val gpsFix: GpsFix?,
     ) : DriveSessionState {
         override fun equals(other: Any?): Boolean =
             other is Sensing && peakAccelG == other.peakAccelG && speedKmh == other.speedKmh &&
-                stageA == other.stageA && accelRailG == other.accelRailG &&
+                stageA == other.stageA && accelRailG == other.accelRailG && gpsFix == other.gpsFix &&
                 imuWindow.contentDeepEquals(other.imuWindow) &&
                 (gpsWindow?.contentEquals(other.gpsWindow ?: floatArrayOf()) ?: (other.gpsWindow == null))
 
@@ -38,6 +42,7 @@ sealed interface DriveSessionState {
             result = 31 * result + imuWindow.contentDeepHashCode()
             result = 31 * result + (gpsWindow?.contentHashCode() ?: 0)
             result = 31 * result + accelRailG.hashCode()
+            result = 31 * result + (gpsFix?.hashCode() ?: 0)
             return result
         }
     }

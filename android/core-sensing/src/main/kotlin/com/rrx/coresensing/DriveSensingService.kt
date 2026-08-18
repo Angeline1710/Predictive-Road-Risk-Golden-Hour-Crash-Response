@@ -81,6 +81,7 @@ class DriveSensingService : LifecycleService() {
                             imuWindow = imuWindow,
                             gpsWindow = gpsBuffer.snapshotWindow(),
                             accelRailG = imuSource.accelRailG,
+                            gpsFix = gpsSource.currentFixOrNull(),
                         )
                     )
                 }

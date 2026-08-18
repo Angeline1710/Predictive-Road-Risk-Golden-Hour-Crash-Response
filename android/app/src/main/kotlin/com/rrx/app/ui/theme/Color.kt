@@ -50,3 +50,18 @@ val RiskNone = Color(0xFF4A554E)
 // emergency occurred".
 val Flare500 = Color(0xFFE03131)
 val Flare100 = Color(0xFFFFE0E0)
+
+// Ink-inverse -- tokens.css defines this once, outside the light/dark
+// conditional blocks, so it's the same value regardless of app theme.
+// That's deliberate: the crash screen (UX-APPFLOW.md §15) is a fixed
+// amber/dark atmosphere that doesn't follow the user's light/dark
+// preference, so its text colours are fixed constants too, not
+// MaterialTheme-derived.
+val InkInverse = Color(0xFFFBFAF6)
+
+// The crash screen's cancel button is always a fixed bitumen-050 fill
+// (dark, regardless of app theme -- see InkInverse's comment above), so
+// its "ink-primary label" (UX-APPFLOW.md §15.3) needs to resolve to the
+// *dark-theme* ink-primary value to stay legible against that dark fill,
+// not whichever ink-primary the current MaterialTheme happens to use.
+val CrashButtonLabel = Color(0xFFF4F1EA)

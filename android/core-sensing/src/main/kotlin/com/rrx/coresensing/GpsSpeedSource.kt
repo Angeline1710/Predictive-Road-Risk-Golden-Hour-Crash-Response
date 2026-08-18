@@ -16,6 +16,8 @@ import com.google.android.gms.location.Priority
  * Wraps FusedLocationProviderClient at [SensingConfig.GPS_HZ] and feeds a
  * [GpsSpeedBuffer]. `Location.speed` (m/s, GPS-derived ground speed) is
  * converted to km/h to match ml/common/config.py's units throughout.
+ * Also tracks the latest full [GpsFix] -- StageAGate/TabularFeatures only
+ * ever needed speed, but a real alert payload needs lat/lon too.
  */
 class GpsSpeedSource(
     private val context: Context,
@@ -23,14 +25,20 @@ class GpsSpeedSource(
 ) {
     private val fusedClient = LocationServices.getFusedLocationProviderClient(context)
 
-    @Volatile private var latestSpeedKmh: Float? = null
+    @Volatile private var latestFix: GpsFix? = null
     @Volatile private var lastFixElapsedRealtimeMs: Long = 0L
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val location = result.lastLocation ?: return
             val speedKmh = location.speed * 3.6f
-            latestSpeedKmh = speedKmh
+            latestFix = GpsFix(
+                lat = location.latitude,
+                lon = location.longitude,
+                accuracyM = location.accuracy,
+                headingDeg = location.bearing,
+                speedKmh = speedKmh,
+            )
             lastFixElapsedRealtimeMs = SystemClock.elapsedRealtime()
             speedBuffer.push(speedKmh)
         }
@@ -58,10 +66,14 @@ class GpsSpeedSource(
      * same as no fix, which is what makes its degraded arm actually
      * degraded rather than trusting a speed reading from minutes ago.
      */
-    fun currentSpeedKmhOrNull(): Float? {
-        val speed = latestSpeedKmh ?: return null
+    fun currentSpeedKmhOrNull(): Float? = currentFixOrNull()?.speedKmh
+
+    /** Same staleness rule as [currentSpeedKmhOrNull], for callers that
+     * need the full fix (lat/lon included) rather than just speed. */
+    fun currentFixOrNull(): GpsFix? {
+        val fix = latestFix ?: return null
         val age = SystemClock.elapsedRealtime() - lastFixElapsedRealtimeMs
-        return if (age <= SensingConfig.GPS_FIX_STALE_MS) speed else null
+        return if (age <= SensingConfig.GPS_FIX_STALE_MS) fix else null
     }
 
     private companion object {

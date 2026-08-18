@@ -2,14 +2,17 @@
 <!--
   Permissions listed here match PRD.md §12.1's "Key permissions" line
   exactly. INTERNET, ACCESS_FINE_LOCATION, ACTIVITY_RECOGNITION,
-  FOREGROUND_SERVICE, FOREGROUND_SERVICE_LOCATION, and POST_NOTIFICATIONS
-  are now exercised by core-sensing's Drive Mode. SEND_SMS,
-  ACCESS_BACKGROUND_LOCATION, RECEIVE_BOOT_COMPLETED, and
-  USE_FULL_SCREEN_INTENT are declared but not yet used. SEND_SMS and
-  ACCESS_BACKGROUND_LOCATION need a Play Store permissions declaration
-  with a demo video that is "a real, weeks-long gate" (PRD.md §12.1), so
-  the manifest reflects the target surface area from day one rather than
-  being patched permission-by-permission as the remaining tracks land.
+  FOREGROUND_SERVICE, FOREGROUND_SERVICE_LOCATION, POST_NOTIFICATIONS, and
+  USE_FULL_SCREEN_INTENT are now exercised (Drive Mode, transport, and the
+  crash countdown screen's full-screen-intent notification). SEND_SMS,
+  ACCESS_BACKGROUND_LOCATION, and RECEIVE_BOOT_COMPLETED are declared but
+  not yet used. SEND_SMS and ACCESS_BACKGROUND_LOCATION need a Play Store
+  permissions declaration with a demo video that is "a real, weeks-long
+  gate" (PRD.md §12.1), so the manifest reflects the target surface area
+  from day one rather than being patched permission-by-permission as the
+  remaining tracks land. USE_FULL_SCREEN_INTENT is a normal permission on
+  API <34 but needs explicit user grant via Settings on API 34+; see
+  CrashTriggerNotifier's fallback path when it isn't granted.
 
   usesCleartextTraffic is true because the dev/demo backend
   (backend/docker-compose.yml) serves plain HTTP with no TLS termination;
@@ -52,6 +55,23 @@
             android:name="com.rrx.coresensing.DriveSensingService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- UX-APPFLOW.md §15: launched via a full-screen-intent
+             notification so it can surface over the lock screen from a
+             background foreground-service context, not just from
+             in-app navigation. excludeFromRecents + singleTask: this
+             screen represents a moment, not a destination; it shouldn't
+             linger in the recents list or be re-enterable via back.
+             Lock-screen display itself is set programmatically in
+             CrashCountdownActivity.onCreate (setShowWhenLocked/
+             setTurnScreenOn on API 27+, window flags below that);
+             there is no manifest attribute for it. -->
+        <activity
+            android:name=".crash.CrashCountdownActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Rrx" />
 
     </application>
 

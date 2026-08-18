@@ -33,8 +33,27 @@ tap "Register device."
 | `core-transport` | **Real**, 2026-08-19: `Rrx1Codec` ports `encode_rrx1()`/`crc8_atm()` to Kotlin, verified byte-for-byte against two concrete outputs from the real Python implementation (3 unit tests). `AlertApi`/DTOs mirror `AlertCreate` field-for-field -- the exact JSON they produce was POSTed with `curl` straight at the live backend and returned a real `202`. `AlertTransport` implements PRD §6.2's channel strategy (HTTPS 6s deadline, SMS 15s deadline, parallel-not-sequential on CRITICAL); `AlertSendWorker` is a plain `CoroutineWorker` (no Hilt-Work) retrying up to 24h on failure. `app`'s `TransportSection` exercises the whole path with an `is_simulated = true` test payload, the same "one real screen proves the contract" pattern as device registration |
 | `core-data` | Placeholder only. Room offline queue, EncryptedSharedPreferences token/medical storage: not built |
 
-Still missing: the cancel-window screen, onboarding, drive-mode UI beyond
-the raw sensor/classification readout, and always-on driving detection.
+`app`'s crash flow (§15-17), **real, 2026-08-19**: `CrashCountdownScreen`
+renders the full-bleed sodium ground, 200sp countdown numeral, drain bar,
+and the one delayed-enable cancel button; `CrashAudioController` (siren
+tone + TTS on `STREAM_ALARM`) and `CrashHapticController` (200ms/800ms
+waveform) run alongside it. `CrashCountdownActivity` hosts the whole
+`CrashFlowState` state machine (Countdown -> Cancelled | Sending -> Sent),
+with real lock-screen bypass, forced max brightness, and volume-key
+cancel. `CrashTriggerNotifier` (new) is what actually starts it: when
+`DriveViewModel`'s live `CrashPrediction.pCrash` crosses the model's own
+threshold (`0.29719674587249756`, from
+`ml/reports/crash_detection_results.json`), it posts a full-screen-intent
+notification -- the sanctioned way to launch an Activity from
+`DriveSensingService`'s background/foreground-service context, since
+Android 10+ blocks `startActivity()` from there outright. On expiry (not
+cancelled), `CrashCountdownViewModel` builds a real `AlertCreateDto`
+(`isSimulated = false`) from the params captured at trigger time and
+calls the real `AlertTransport.send()` -- this is the one path in the
+app that produces a non-simulated alert.
+
+Still missing: onboarding, drive-mode UI beyond the raw sensor/
+classification readout, always-on driving detection, and `core-data`.
 See MVP-PLAN.md §3.3 for what's left and its cost.
 
 ### Sensing scope notes (real limitations, not oversights)
@@ -109,8 +128,56 @@ See MVP-PLAN.md §3.3 for what's left and its cost.
   HTTPS schema has no field distinguishing "the user was unresponsive
   during the cancel window" from "the window simply expired" -- only
   `window.outcome` (EXPIRED/CANCELLED). `AlertTransport` sets `unresponsive
-  = false` unconditionally rather than guess; the cancel-window screen
-  (unbuilt) is what would actually know the difference.
+  = false` unconditionally rather than guess. The cancel-window screen is
+  built now, but it doesn't close this gap: `cancel()` short-circuits
+  before `send()` is ever called, so `AlertTransport` only ever sees the
+  EXPIRED case, and telling "expired because unresponsive" apart from
+  "expired but conscious and just didn't reach for the phone" needs real
+  post-impact motion/pickup sensing (UX-APPFLOW.md §15.4's full CRITICAL
+  condition), which isn't wired -- see the crash-screen scope notes below.
+
+### Crash-screen scope notes (real limitations, not oversights)
+
+- **Never run on a device or emulator, same caveat as every other module.**
+  `assembleDebug` proves the whole `app` module (Hilt DI, Compose, the
+  full `CrashFlowState` machine, the manifest-declared Activity) packages
+  correctly; it does not prove the countdown actually renders, the siren
+  fires, or the notification launches the Activity over a real lock
+  screen. That needs real hardware.
+- **CRITICAL-alone triggers the 5s window**, not UX-APPFLOW.md §15.4's
+  full "CRITICAL + no post-impact motion + phone not picked up" condition
+  -- neither post-impact motion nor pickup detection is wired, so severity
+  is the only signal this build has to go on.
+- **The same 800ms cancel-delay guard applies to the volume keys**, even
+  though §15.3 only spells it out for the button. The guard's own reason
+  (an impact striking the phone shouldn't be able to cancel the alert)
+  applies just as much to a volume key a flying phone could physically
+  strike, so `CrashCountdownViewModel.cancel()` gates both the same way
+  rather than trusting the spec's silence on volume keys as permission to
+  skip it.
+- **`SendingScreen` is a simplified 2-state summary, not §17's full 4-node
+  timestamped channel ladder.** `AlertTransport.send()` returns one final
+  `TransportResult`, not a stream of intermediate progress events, so
+  there's no real per-step timestamp to show; a true ladder needs
+  `AlertTransport` to expose progress as a `Flow`, not built here. §16's
+  feedback micro-survey and the full radial Golden Hour Dial are likewise
+  out of scope -- `SendingScreen` shows a numeral-only countup/countdown
+  instead.
+- **`pCrash` crossing the threshold with `severity == NONE` is treated as
+  MODERATE, not silently ignored.** These are two independent heads of
+  the same model and can disagree in principle; `CrashTriggerNotifier`
+  picks a real severity rather than propagate a contradiction (a crash
+  flagged real enough to launch the countdown, described as no crash at
+  all) into the alert payload.
+- **The full-screen-intent permission fallback is the platform's, not a
+  custom one.** On API 34+, `USE_FULL_SCREEN_INTENT` needs an explicit
+  Settings-mediated grant; `CrashTriggerNotifier` always calls
+  `setFullScreenIntent()` regardless, since Android itself downgrades an
+  ungranted full-screen intent to a normal heads-up notification rather
+  than failing -- writing a custom fallback (e.g. attempting
+  `startActivity()` directly from `DriveViewModel`'s background context)
+  would just hit the same background-activity-start restriction the
+  full-screen-intent mechanism exists to bypass.
 
 ## Known gaps worth knowing about before extending this
 
@@ -148,3 +215,25 @@ See MVP-PLAN.md §3.3 for what's left and its cost.
   module boundary the way it does within one module -- `TransportSection.kt`
   needed a local `val` to hold `result.httpsResponse` before the nullable
   field was usable smart-cast-free.
+- **Real bugs the crash-screen pass added, both caught by the Docker
+  verification, neither by review alone:** the XML `--`-in-comment bug
+  recurred a *third* time -- this time in doc comments added to
+  `AndroidManifest.xml` for `CrashCountdownActivity`'s `<activity>`
+  element and the top permissions block -- and again failed the manifest
+  merger with the exact same `ManifestMerger2$MergeFailureException`.
+  Three occurrences across three separate passes is itself the lesson:
+  grepping for `--` before touching a manifest comment isn't optional
+  caution, it's a known-recurring failure mode in this codebase. Second,
+  `CrashCountdownScreen.kt`'s `val buttonFill by animateFloatAsState(...)`
+  failed to compile with "has no method `getValue`" -- Compose's property
+  delegate syntax for `State<T>` needs `androidx.compose.runtime.getValue`
+  imported explicitly (and `setValue` for mutable state), a step so easy
+  to forget IntelliJ/Android Studio normally auto-imports it; a `kotlinc`
+  build with no IDE has no such safety net. Also worth noting as a near-miss
+  that *didn't* recur: an earlier attempt at the manifest's `<activity>`
+  entry used a nonexistent `android:showOnLockScreen` attribute (the real
+  API, `setShowWhenLocked()`/`setTurnScreenOn()`, is Activity-level, not a
+  manifest attribute) -- caught on inline review before the Docker build
+  ever ran, so it never shows up in a build log, but it's the same
+  "verify against the real API surface, not what sounds plausible"
+  discipline the rest of this project has needed repeatedly.
