@@ -14,12 +14,13 @@
 |---|---|
 | Product definition (PRD, UX/appflow, model card) | **Done**, kept in sync with the built model (PRD §7.1/§6.1.2/§12.3 updated 2026-08-17) |
 | Model A — crash detection | Trained, exported, **deployable artifact verified end-to-end**: `crash_fusion_deployable_v1.tflite` (299.5 KB) takes raw sensor input, computes its own mel spectrogram on-device, and needs no client-side normalisation. Real-world accuracy **still unvalidated** — see `ml/MODELS.md` §0 |
-| Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Not served** — no API wraps it yet |
-| Backend (`rrx-api`) | **Scaffold + `POST /alerts` done, verified against real Docker containers.** Schema (14 tables), the primary alert-ingest endpoint, and the simulated dispatch gateway all work end to end — see `backend/README.md` for what's real vs. stubbed. Everything else in PRD §10 (auth, risk serving, dashboard endpoints, weather/traffic, SMS ingest) is not yet built |
-| Android app, dashboard, infra | **Nothing exists** |
+| Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Served** — `GET /risk/point`, `GET /risk/bbox` (with segment geometry), wired into alert ingest for `risk_context` |
+| Backend (`rrx-api`) | **Functionally complete for MVP scope**, verified against real Docker containers throughout. `POST/GET /alerts`, `GET /alerts` (list), `POST /ingest/sms` (RRX1 parse + CRC), `POST/GET /devices` (register, heartbeat, count), risk serving, `WS /ws/events`, `/sim/*` demo endpoints, the simulated dispatch gateway. **Not built:** vector tiles (`/risk/tiles`), `/risk/route`, dashboard-facing RBAC (device JWT exists; no operator/analyst login) — see `backend/README.md` |
+| Dashboard (`rrx-ops`) | **Live Operations view built and verified against the real backend**: map with real risk-banded segments, live incident rail (WS-pushed, cold-start via `GET /alerts`), all seven signature components (UX §7), System Honesty Bar wired to real (if sparse) feed status. Incident Detail, Risk Map, Analytics, Simulator console views not yet built — nav rail shows them as disabled, not broken links |
+| Android app | **Nothing exists** |
 | Version control | **Done.** Pushed to [GitHub](https://github.com/Angeline1710/Predictive-Road-Risk-Golden-Hour-Crash-Response), `main` tracking `origin/main` |
 
-Roughly **32% of the MVP is built** — the ML layer, the on-device audio risk (§4.1), and now a working backend core: real schema, a verified `POST /alerts`, and a dispatch gateway that does more than return `200 OK` (tested nearest-responder selection and all three failure modes independently). Android and the dashboard are still at zero — those are next.
+Roughly **55% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, all verified against real Docker containers), and a working Live Operations dashboard wired end-to-end to that backend, including a real-time WS path (crash simulated via curl appeared in the rail with no page reload, sorted correctly). Android is still at zero — that's next, and it's the longest lead time in the plan.
 
 ---
 
@@ -55,7 +56,7 @@ Effort in person-days. Assumes a 5-person team working in parallel.
 
 ### 3.1 Backend — `rrx-api` · **the critical path**
 
-Everything else depends on it. **Started 2026-08-18** — scaffold, schema, and `POST /alerts` are done and verified against real containers, not mocked.
+Everything else depends on it. **Functionally complete for MVP scope as of 2026-08-18** — every piece below verified against real Docker containers (Postgres/PostGIS/Redis), not mocked or TestClient-only.
 
 | Piece | Days | Notes |
 |---|---|---|
@@ -64,15 +65,15 @@ Everything else depends on it. **Started 2026-08-18** — scaffold, schema, and 
 | ~~`POST /alerts` — validate, dedup on `alert_uuid`, persist, `202`~~ | ~~1.5~~ **0** | **Done and verified**, not just written: idempotency confirmed (retry produces zero duplicate rows, same ticket returned), map-matching confirmed against a seeded segment, graceful degradation confirmed against an empty `road_segments` table (PRD §10.4) |
 | ~~`DispatchGateway` protocol + `SimulatedPmRahatGateway`~~ | ~~1.5~~ **0** | **Done and verified.** Real PostGIS nearest-responder selection (tested: correctly picked a 25.6 km unit over one 1,900 km away), ticket state machine, and all three injectable failure modes (`slow`/`timeout`/`reject`) individually tested |
 | ~~Nearest-responder query~~ | ~~0.5~~ **0** | **Done** — folded into the gateway work above; `app/services/responders.py` uses a real `geography`-cast `ST_Distance`, not the faster-but-wrong planar version |
-| Enrichment: weather, traffic, cache-first with hard timeouts | 1.5 | **Map-matching is done** (real PostGIS query, `app/services/segments.py`); weather/traffic external API integration is not. Was 2 days for map-match+weather+traffic together — map-match is off the list |
-| `POST /ingest/sms` — parse `RRX1`, CRC check, HMAC auth | 1 | Treat inbound SMS as untrusted (NFR-S7) |
-| Model B serving: load booster, `/risk/point`, `/risk/route`, `/risk/bbox` | 1.5 | Artifact exists; needs the feature-vector builder. `risk_baseline` lookup path already exists (`segments.current_risk`), currently returns `None` until the nightly precompute job populates it |
-| Vector tiles `/risk/tiles/{z}/{x}/{y}.mvt` via `ST_AsMVT` | 1 | |
-| WebSocket `/ws/events` + Redis pub/sub | 1 | Redis is running and configured but not yet used by any endpoint |
-| `/devices/register`, `/alerts/{uuid}/trace`, `/alerts/{uuid}/cancel`, `GET /alerts/{uuid}` | 1 | PRD §10.1 lists these; none exist yet. Verification needed a device pre-seeded by hand — this is why |
-| `/sim/*` demo endpoints | 1 | Env-flag gated. `GatewayModeState` (the thing `/sim/gateway/mode` would flip) already exists and is wired into the gateway — the endpoint to mutate it over HTTP is what's missing |
-| Auth: device JWT + dashboard RBAC | 1.5 | Every route is currently open |
-| **Total** | **~10** | down from ~15 |
+| ~~Enrichment: weather, traffic, cache-first with hard timeouts~~ | ~~1.5~~ **0** | Map-match is real PostGIS. Weather/traffic have **no API key configured** and honestly degrade to "unavailable" (never faked) — the Dashboard's System Honesty Bar surfaces this rather than hiding it. Getting a real key is a config change, not a code gap |
+| ~~`POST /ingest/sms` — parse `RRX1`, CRC check~~ | ~~1~~ **0** | **Done.** `app/services/sms_protocol.py`; the PRD's own worked-example CRC doesn't reproduce under CRC-8/ATM or 9 other tested variants — documented as a PRD placeholder-text issue, not a bug in the implementation (encode→parse round-trips correctly, corruption is rejected) |
+| ~~Model B serving: `/risk/point`, `/risk/bbox`~~ | ~~1.5~~ **0** | **Done.** Both return segment geometry (added 2026-08-18 for the dashboard's map overlay) as well as score/band/SHAP top-3. `/risk/route` still not implemented — left absent rather than stubbed with fake data |
+| Vector tiles `/risk/tiles/{z}/{x}/{y}.mvt` via `ST_AsMVT` | 1 | Not needed for MVP — the dashboard renders `/risk/bbox` segments as vector polylines directly, which is sufficient at single-corridor scale |
+| ~~WebSocket `/ws/events` + Redis pub/sub~~ | ~~1~~ **0** | **Done and verified live**: a simulated crash triggered via `curl` appeared in the dashboard's incident rail with no page reload, correctly sorted |
+| ~~`/devices/register`, `/devices/{id}/heartbeat`, `GET /devices/count`, `GET /alerts/{uuid}`, `GET /alerts` (list)~~ | ~~1~~ **0** | **Done.** `GET /alerts` (list) and `GET /devices/count` added 2026-08-18 specifically to give the dashboard real cold-start and honesty-bar data instead of fabricating placeholders. `/alerts/{uuid}/trace` and `/alerts/{uuid}/cancel` still absent — no dashboard or Android surface calls them yet |
+| ~~`/sim/*` demo endpoints~~ | ~~1~~ **0** | **Done.** Env-flag gated, used throughout dashboard verification |
+| Auth: device JWT + dashboard RBAC | 1.5 | Device JWT exists and gates `/devices/{id}/heartbeat`. **No dashboard login** — the Shell's `OPERATOR` role chip is a hardcoded display value, not an authenticated session. Every other route is open |
+| **Total** | **~2.5** | down from ~10 — only auth remains |
 
 ### 3.2 ETL — corridor data
 
@@ -108,18 +109,18 @@ Start in parallel with the backend on day 1; do not wait for the API.
 
 ### 3.4 Dashboard — `rrx-ops`
 
-Fully parallel. Only needs the API contract, which the OpenAPI spec gives on day 2.
+**Started and Live Operations shipped 2026-08-18** — React 18 + TS + Vite + Tailwind + react-leaflet + TanStack Query + Zustand per PRD §12.4, verified against the real running backend (not a mock API), including a live WebSocket update observed end-to-end.
 
 | Piece | Days | Notes |
 |---|---|---|
-| Scaffold: Vite, TS, Tailwind, design tokens, theme switching | 1.5 | |
-| Signature components: Milestone Marker, Segment Ribbon, Golden Hour Dial, Channel Badge, **Simulation Seal**, Trace Sparkline, Honesty Bar | 4 | UX §7 specs them fully |
-| Live Operations: map + risk overlay + incident rail + WS | 3 | |
-| Incident detail (UX §22) | 2 | |
-| Risk map + condition simulator + blackspot comparison | 2.5 | The comparison view is the strongest MoRTH argument |
-| Analytics + export | 1.5 | |
-| Simulator console | 1 | |
-| **Total** | **~15.5** | |
+| ~~Scaffold: Vite, TS, Tailwind, design tokens, theme switching~~ | ~~1.5~~ **0** | **Done.** `web/src/styles/tokens.css` is a verbatim transcription of UX §28; light/dark via `[data-theme]`, Live Operations defaults dark per §20 |
+| ~~Signature components: Milestone Marker, Segment Ribbon, Golden Hour Dial, Channel Badge, Simulation Seal, Trace Sparkline, Honesty Bar~~ | ~~4~~ **0** | **Done**, all seven, matching UX §7's dimensions/colour/pattern specs exactly (triple-encoded risk bands per NFR-A3), reachable at `/gallery` for design QA |
+| ~~Live Operations: map + risk overlay + incident rail + WS~~ | ~~3~~ **0** | **Done.** Real risk-banded segment polylines from `/risk/bbox` (not mocked geometry), Milestone Marker incidents with zoom-tiered rendering and unacknowledged-pulse, incident rail sorted unacknowledged-first-then-golden-hour-ascending per §21.2, live WS updates, a functional (if MVP-scoped) 24h time scrubber that re-queries Model B for the scrubbed hour. Basemap is a CARTO dark no-labels raster as an honest approximation of §21.1's bespoke vector tile style, which this project has no tile-serving pipeline for |
+| Incident detail (UX §22) | 2 | Not built. Rail cards show a summary; no dedicated detail route yet |
+| Risk map + condition simulator + blackspot comparison | 2.5 | Not built. Layer control exists in Live Operations with Weather/Traffic/Blackspots shown-but-disabled (no data source for any of the three) rather than hidden or faked |
+| Analytics + export | 1.5 | Not built |
+| Simulator console | 1 | Not built as a UI — `/sim/*` endpoints work and were used directly via `curl` for all dashboard verification |
+| **Total** | **~7** | down from ~15.5 |
 
 ### 3.5 Integration, hardening, demo
 
@@ -133,7 +134,7 @@ Fully parallel. Only needs the API contract, which the OpenAPI spec gives on day
 | Deck rebuilt against the working system — architecture slide, model params, artifact size all changed since the original deck (§4.3) | 1 |
 | **Total** | **~7.5** |
 
-**Grand total ≈ 58 person-days** (backend 10 + ETL 4 + Android 21 + dashboard 15.5 + integration 7.5), down from ~63. At 5 people over 6 weeks (~150 person-days available) that is comfortable — *if* the Android track starts on day 1.
+**Grand total ≈ 42 person-days** (backend 2.5 + ETL 4 + Android 21 + dashboard 7 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **Android is now unambiguously the critical path** — everything else is either done or has a clear, small remainder.
 
 ---
 
@@ -179,20 +180,22 @@ PRD §7.1 described a single-modality 1D-CNN on `200 × 6`, ~45k params. The bui
 ## 5. Sequencing
 
 ```
-Week 1  backend scaffold + POST /alerts + schema     ─┐
-        android scaffold + sensing ring buffer        ├─ all three parallel
-        dashboard scaffold + design tokens           ─┘
+Week 1  [done] backend scaffold + POST /alerts + schema
+        [done] dashboard scaffold + design tokens + signature components
+        android scaffold + sensing ring buffer         <- now the whole week's work
         [done] git init + push · corridor frozen · mel-in-graph resolved
         [still open] SMS companion-phone receiver (§2②)
 
-Week 2  enrichment + gateway + WS          android: Stage-A + TFLite runner
-        ETL: OSM -> 500m segments          dashboard: components + live map
+Week 2  [done] enrichment + gateway + WS + risk endpoints + SMS ingest + sim
+        [done] ETL: OSM -> 500m segments (real NH-45/Chengalpattu corridor)
+        [done] dashboard: Live Operations (map + risk overlay + incident rail + WS)
+        android: Stage-A + TFLite runner
 
-Week 3  risk endpoints + tiles             android: cancel window + transport
-        Model B retrained on real segments dashboard: incident detail
+Week 3  android: cancel window + transport
+        dashboard: incident detail (remaining ~2 days of §3.4)
 
-Week 4  SMS ingest + dedup                 android: onboarding + 5 languages
-        sim endpoints                      dashboard: risk map + comparison
+Week 4  android: onboarding + 5 languages
+        dashboard: risk map + comparison, analytics, simulator console
 
 Week 5  integration, latency instrumentation, battery profiling
         android: drive mode + risk warnings
@@ -200,7 +203,7 @@ Week 5  integration, latency instrumentation, battery profiling
 Week 6  harden, load test, E2E script, rehearse, rebuild deck
 ```
 
-**Critical path:** backend `POST /alerts` → Android transport → end-to-end latency. Anything that slips there slips the demo.
+**Critical path is now Android**, full stop — backend and the Live Operations dashboard are both verified against real infrastructure and each other. Anything that slips the Android sensing/transport/cancel-window work slips the demo; the remaining dashboard views (§3.4) can slip a week without touching the PRD §16.2 walkthrough, which only needs Live Operations to be real.
 
 ---
 

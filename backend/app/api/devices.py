@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from jose import JWTError
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -20,6 +21,28 @@ from app.schemas.device import (
 from app.services.auth import decode_token, issue_token_pair
 
 router = APIRouter(tags=["devices"])
+
+ACTIVE_WINDOW_HOURS = 24
+
+
+class DeviceCount(BaseModel):
+    active: int
+    active_window_hours: int = ACTIVE_WINDOW_HOURS
+    total: int
+
+
+@router.get("/devices/count", response_model=DeviceCount)
+async def count_devices(db: AsyncSession = Depends(get_db)) -> DeviceCount:
+    """UX-APPFLOW.md §7.7's honesty bar shows a live device count -- this
+    makes it a real number (devices heartbeated in the active window) rather
+    than something the dashboard invents.
+    """
+    since = datetime.now(UTC) - timedelta(hours=ACTIVE_WINDOW_HOURS)
+    active = (
+        await db.execute(select(func.count()).select_from(Device).where(Device.last_seen_at >= since))
+    ).scalar_one()
+    total = (await db.execute(select(func.count()).select_from(Device))).scalar_one()
+    return DeviceCount(active=active, total=total)
 
 
 async def get_current_device_id(

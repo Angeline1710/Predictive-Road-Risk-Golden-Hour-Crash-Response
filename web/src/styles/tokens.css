@@ -1,0 +1,49 @@
+/* Transcribed verbatim from UX-APPFLOW.md §28. Single source of truth --
+   if this ever needs to change, change §28 first, then this file, not the
+   other way around. */
+:root {
+  /* Bitumen */
+  --bitumen-000:#0A0F0D; --bitumen-050:#0E1512; --bitumen-100:#141C18;
+  --bitumen-200:#1B241F; --bitumen-300:#24302A; --bitumen-400:#33413A;
+  --bitumen-500:#475A50;
+  /* Paper */
+  --paper-000:#FBFAF6; --paper-100:#F4F2EA; --paper-200:#EAE7DB;
+  --paper-300:#DCD8C8; --paper-400:#C6C1AE;
+  /* Sodium */
+  --sodium-200:#FFE3B8; --sodium-300:#FFCC80; --sodium-400:#F5B14C;
+  --sodium-500:#E8971C; --sodium-600:#C87C0D; --sodium-700:#94590A;
+  /* Highway */
+  --highway-300:#5FBF95; --highway-500:#1F6B4A;
+  --highway-600:#175339; --highway-700:#0F3A28;
+  /* Risk -- semantic only, never decorative (UX-APPFLOW.md §4.7) */
+  --risk-low:#3E8C74; --risk-mod:#D9A227;
+  --risk-high:#D9622B; --risk-severe:#B4232F; --risk-none:#4A554E;
+  /* Flare -- failure and simulation only (UX-APPFLOW.md §4.8/§7.5) */
+  --flare-500:#E03131; --flare-100:#FFE0E0;
+
+  --font-display:"Fraunces",Georgia,serif;
+  --font-ui:"Inter",system-ui,sans-serif;
+  --font-telemetry:"IBM Plex Mono",ui-monospace,monospace;
+
+  --radius-sm:4px; --radius-md:8px; --radius-lg:12px;
+  --ease-standard:cubic-bezier(.2,0,0,1);
+  --ease-emphasis:cubic-bezier(.3,0,0,1);
+  --motion-fast:120ms; --motion-base:180ms; --motion-emphasis:280ms;
+}
+
+:root { /* light -- default; Analytics/Reports per UX-APPFLOW.md §24 */
+  --ground:var(--paper-000); --surface:var(--paper-100);
+  --ink-primary:#141A16; --ink-secondary:#3E4740;
+  --ink-muted:#6B7369; --ink-inverse:#FBFAF6; --border:var(--paper-400);
+}
+:root[data-theme="dark"] { /* Live Operations default per UX-APPFLOW.md §20 */
+  --ground:var(--bitumen-050); --surface:var(--bitumen-100);
+  --ink-primary:#F4F1EA; --ink-secondary:#C6C0B2;
+  --ink-muted:#8E887A; --ink-inverse:#0E1512; --border:var(--bitumen-400);
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink-primary);
+  font-family: var(--font-ui);
+}

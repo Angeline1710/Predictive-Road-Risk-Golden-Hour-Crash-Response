@@ -103,3 +103,28 @@ class AlertResponse(BaseModel):
     risk_context: RiskContext | None = None
     dispatch: DispatchInfo | None = None
     nearest_units: list[NearestUnit] = []
+
+
+class AlertSummary(BaseModel):
+    """GET /alerts list row -- UX-APPFLOW.md §21.2 incident rail cold-start
+    (the WebSocket carries live updates after page load, but the rail needs
+    an initial snapshot from somewhere). Deliberately lighter than
+    AlertResponse: no dispatch payload replay, no nearest-unit recompute --
+    just what the rail and map marker need to render.
+    """
+
+    alert_uuid: UUID
+    status: str
+    severity: str
+    channel: str
+    occurred_at: datetime
+    received_at: datetime
+    lat: float
+    lon: float
+    segment_id: int | None = None
+    landmark: str | None = None
+    risk_score: float | None = None
+    risk_band: str | None = None
+    is_simulated: bool
+    has_trace: bool
+    ticket_id: str | None = None

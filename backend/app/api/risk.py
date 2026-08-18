@@ -5,6 +5,7 @@ a stub that returns fake data is worse than an endpoint that doesn't exist.
 """
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 import structlog
@@ -33,15 +34,30 @@ class RiskContextOut(BaseModel):
     band: str
     top_factors: list[str]
     model_version: str
+    # GeoJSON LineString [lon, lat] pairs -- UX-APPFLOW.md §21.1's risk
+    # overlay draws segments stroked by band, which needs the geometry the
+    # score was computed for, not just the score.
+    geometry: list[list[float]]
 
 
-async def _nearest_segment(db: AsyncSession, lat: float, lon: float) -> RoadSegment | None:
+def _coords_from_geojson(geojson_text: str) -> list[list[float]]:
+    return json.loads(geojson_text)["coordinates"]
+
+
+async def _nearest_segment(db: AsyncSession, lat: float, lon: float) -> tuple[RoadSegment, list[list[float]]] | None:
     point = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
     distance_m = func.ST_Distance(cast(RoadSegment.geom, Geography), cast(point, Geography))
     stmt = (
-        select(RoadSegment).where(distance_m <= MAP_MATCH_RADIUS_M).order_by(distance_m).limit(1)
+        select(RoadSegment, func.ST_AsGeoJSON(RoadSegment.geom))
+        .where(distance_m <= MAP_MATCH_RADIUS_M)
+        .order_by(distance_m)
+        .limit(1)
     )
-    return (await db.execute(stmt)).scalars().first()
+    row = (await db.execute(stmt)).first()
+    if row is None:
+        return None
+    seg, geojson_text = row
+    return seg, _coords_from_geojson(geojson_text)
 
 
 @router.get("/point", response_model=RiskContextOut)
@@ -51,8 +67,8 @@ async def risk_point(
     at: datetime | None = Query(default=None, description="Defaults to now"),
     db: AsyncSession = Depends(get_db),
 ) -> RiskContextOut:
-    seg = await _nearest_segment(db, lat, lon)
-    if seg is None:
+    found = await _nearest_segment(db, lat, lon)
+    if found is None:
         # Honest 404, not a fabricated score -- PRD §4.7 "No data" band
         # exists in the UX spec precisely for this case.
         raise HTTPException(
@@ -60,11 +76,12 @@ async def risk_point(
             f"no road segment within {MAP_MATCH_RADIUS_M}m of ({lat}, {lon}) -- "
             "the corridor ETL (MVP-PLAN.md task #11) has not populated this area yet",
         )
+    seg, coords = found
     result: RiskResult = predict(features_from_segment(seg, at or datetime.now(UTC)))
     return RiskContextOut(
         segment_id=seg.segment_id, district=seg.district, road_class=seg.road_class,
         score=result.score, band=result.band, top_factors=result.top_factors,
-        model_version=result.model_version,
+        model_version=result.model_version, geometry=coords,
     )
 
 
@@ -79,16 +96,20 @@ async def risk_bbox(
     if minlat >= maxlat or minlon >= maxlon:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "min must be less than max on both axes")
     envelope = func.ST_MakeEnvelope(minlon, minlat, maxlon, maxlat, 4326)
-    stmt = select(RoadSegment).where(func.ST_Intersects(RoadSegment.geom, envelope)).limit(limit)
-    segments = (await db.execute(stmt)).scalars().all()
+    stmt = (
+        select(RoadSegment, func.ST_AsGeoJSON(RoadSegment.geom))
+        .where(func.ST_Intersects(RoadSegment.geom, envelope))
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
 
     at = at or datetime.now(UTC)
     out = []
-    for seg in segments:
+    for seg, geojson_text in rows:
         result = predict(features_from_segment(seg, at))
         out.append(RiskContextOut(
             segment_id=seg.segment_id, district=seg.district, road_class=seg.road_class,
             score=result.score, band=result.band, top_factors=result.top_factors,
-            model_version=result.model_version,
+            model_version=result.model_version, geometry=_coords_from_geojson(geojson_text),
         ))
     return out
