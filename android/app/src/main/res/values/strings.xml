@@ -1,4 +1,93 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Road-Risk Response</string>
+
+    <!-- UX-APPFLOW.md §11.1 -->
+    <string name="onboarding_promise_headline">If you crash and can\'t call, your phone will.</string>
+    <string name="onboarding_promise_sub">Works on this phone. Works without internet. Works in your language.</string>
+    <string name="onboarding_promise_cta">Set up protection</string>
+    <string name="onboarding_promise_how">How this works</string>
+
+    <!-- UX-APPFLOW.md §11.2. The English name under each row (English,
+         Hindi, Tamil, Telugu, Bengali) is deliberately not itself
+         translated per-locale; it's there to help someone reading
+         a script they don't recognise, so it stays in English/the
+         language's own common exonym in every locale. -->
+    <string name="onboarding_language_title">Choose your language</string>
+    <string name="onboarding_language_subtitle">You can change this later in Settings.</string>
+    <string name="onboarding_language_preview_line">Crash detected. Sending alert in ten seconds.</string>
+    <string name="onboarding_language_voice_pack_needed">VOICE PACK NEEDED</string>
+    <string name="onboarding_language_continue">Continue</string>
+
+    <!-- UX-APPFLOW.md §11.3's shared Consent Card template -->
+    <string name="consent_not_now">Not now</string>
+
+    <string name="consent_location_title">LOCATION</string>
+    <string name="consent_location_reason">So responders know where to come</string>
+    <string name="consent_location_do_1">Sent only when a crash is confirmed</string>
+    <string name="consent_location_do_2">Used to warn you about the road ahead</string>
+    <string name="consent_location_dont_1">Never continuously uploaded</string>
+    <string name="consent_location_dont_2">Never sold, shared, or advertised</string>
+    <string name="consent_location_stores">Your crash position. A ~250 km² area for weather. Nothing else.</string>
+    <string name="consent_location_cta">Allow location</string>
+
+    <!-- Motion/SMS body copy follows the Location card's template and
+         tone but isn't itself spelled out verbatim in UX-APPFLOW.md §11.3
+         (only Location's ASCII mock gives exact wording); written to
+         match, not quoted from the spec. -->
+    <string name="consent_motion_title">MOTION</string>
+    <string name="consent_motion_reason">So a real crash can be told apart from a pothole</string>
+    <string name="consent_motion_do_1">Used on this phone to detect a crash\'s motion signature</string>
+    <string name="consent_motion_do_2">Runs only while Drive Mode is on</string>
+    <string name="consent_motion_dont_1">Never used to score or rate your driving</string>
+    <string name="consent_motion_dont_2">Never leaves this phone by itself</string>
+    <string name="consent_motion_stores">Nothing. Motion is processed live and discarded, never logged.</string>
+    <string name="consent_motion_cta">Allow motion sensing</string>
+
+    <string name="consent_sms_title">SMS</string>
+    <string name="consent_sms_reason">So the alert still reaches help with no signal at all</string>
+    <string name="consent_sms_do_1">Sent only if a crash is confirmed and the internet fails</string>
+    <string name="consent_sms_do_2">One message, to one emergency number</string>
+    <string name="consent_sms_dont_1">Never used for any other message</string>
+    <string name="consent_sms_dont_2">Never reads your other texts</string>
+    <string name="consent_sms_stores">Nothing beyond the one alert message, if it\'s ever sent.</string>
+    <string name="consent_sms_cta">Allow SMS</string>
+    <!-- UX-APPFLOW.md §11.3: "Step 5 (SMS) carries an extra line" -->
+    <string name="consent_sms_extra_line">Only ever one message, only when you\'ve crashed, only if there\'s no internet. Standard SMS rates apply. We never read your messages.</string>
+
+    <!-- UX-APPFLOW.md §11.4, Step 6 -->
+    <string name="onboarding_contacts_title">Emergency contacts</string>
+    <string name="onboarding_contacts_subtitle">Add up to 5 people we\'ll alert first.</string>
+    <string name="onboarding_contacts_add">Add from contacts</string>
+    <string name="onboarding_contacts_empty">No contacts added yet.</string>
+    <string name="onboarding_contacts_limit_reached">Five is the most you can add.</string>
+    <string name="onboarding_contacts_skip">Skip for now</string>
+    <string name="onboarding_contacts_continue">Continue</string>
+
+    <!-- UX-APPFLOW.md §11.4, Step 7 -->
+    <string name="onboarding_medical_title">Medical profile</string>
+    <string name="onboarding_medical_subtitle">Optional. Helps responders help you faster.</string>
+    <string name="onboarding_medical_blood_group">Blood group</string>
+    <string name="onboarding_medical_allergies">Allergies</string>
+    <string name="onboarding_medical_conditions">Conditions</string>
+    <string name="onboarding_medical_organ_donor">Organ donor</string>
+    <string name="onboarding_medical_encryption_line">Encrypted on this device. Only sent to emergency services, only after a confirmed crash.</string>
+    <string name="onboarding_medical_skip">Skip</string>
+    <string name="onboarding_medical_continue">Continue</string>
+
+    <!-- UX-APPFLOW.md §11.5, Step 8 -->
+    <string name="onboarding_battery_headline">One more thing, or this won\'t work</string>
+    <string name="onboarding_battery_body">Some phones aggressively stop apps running in the background. Allow this app to run without restrictions so it can still detect a crash while your screen is off.</string>
+    <string name="onboarding_battery_cta">Open battery settings</string>
+    <string name="onboarding_battery_protection_active">PROTECTION ACTIVE</string>
+    <string name="onboarding_battery_protection_limited">PROTECTION LIMITED</string>
+    <string name="onboarding_battery_continue">Continue</string>
+
+    <!-- UX-APPFLOW.md §11.6, Step 9 -->
+    <string name="onboarding_ready_headline">You\'re protected.</string>
+    <string name="onboarding_ready_status_detection">Crash detection: live</string>
+    <string name="onboarding_ready_status_fallback_live">SMS fallback: live</string>
+    <string name="onboarding_ready_status_fallback_off">SMS fallback: not granted</string>
+    <string name="onboarding_ready_status_language">Language: %1$s</string>
+    <string name="onboarding_ready_done">Done</string>
 </resources>

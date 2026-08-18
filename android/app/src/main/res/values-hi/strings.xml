@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI-generated Hindi translation, not reviewed by a native speaker;
+  see android/README.md's onboarding scope notes. Verify before any real
+  demo that leans on this locale.
+-->
+<resources>
+    <string name="app_name">रोड-रिस्क रिस्पॉन्स</string>
+
+    <string name="onboarding_promise_headline">अगर आपका एक्सीडेंट हो और आप कॉल न कर पाएं, तो आपका फ़ोन करेगा।</string>
+    <string name="onboarding_promise_sub">यह फ़ोन पर काम करता है। इंटरनेट के बिना काम करता है। आपकी भाषा में काम करता है।</string>
+    <string name="onboarding_promise_cta">सुरक्षा सेट करें</string>
+    <string name="onboarding_promise_how">यह कैसे काम करता है</string>
+
+    <string name="onboarding_language_title">अपनी भाषा चुनें</string>
+    <string name="onboarding_language_subtitle">आप इसे बाद में सेटिंग्स में बदल सकते हैं।</string>
+    <string name="onboarding_language_preview_line">दुर्घटना का पता चला। दस सेकंड में अलर्ट भेजा जा रहा है।</string>
+    <string name="onboarding_language_voice_pack_needed">आवाज़ पैक चाहिए</string>
+    <string name="onboarding_language_continue">जारी रखें</string>
+
+    <string name="consent_not_now">अभी नहीं</string>
+
+    <string name="consent_location_title">लोकेशन</string>
+    <string name="consent_location_reason">ताकि मदद करने वाले जान सकें कि कहाँ आना है</string>
+    <string name="consent_location_do_1">केवल दुर्घटना की पुष्टि होने पर भेजी जाती है</string>
+    <string name="consent_location_do_2">आगे की सड़क की चेतावनी देने के लिए इस्तेमाल होती है</string>
+    <string name="consent_location_dont_1">कभी लगातार अपलोड नहीं होती</string>
+    <string name="consent_location_dont_2">कभी बेची, साझा या विज्ञापित नहीं की जाती</string>
+    <string name="consent_location_stores">आपकी दुर्घटना की स्थिति। मौसम के लिए ~250 वर्ग किमी का क्षेत्र। और कुछ नहीं।</string>
+    <string name="consent_location_cta">लोकेशन की अनुमति दें</string>
+
+    <string name="consent_motion_title">मोशन</string>
+    <string name="consent_motion_reason">ताकि असली दुर्घटना और गड्ढे में फ़र्क किया जा सके</string>
+    <string name="consent_motion_do_1">इसी फ़ोन पर दुर्घटना के मूवमेंट पैटर्न को पहचानने के लिए इस्तेमाल होता है</string>
+    <string name="consent_motion_do_2">केवल ड्राइव मोड चालू होने पर चलता है</string>
+    <string name="consent_motion_dont_1">कभी आपकी ड्राइविंग को आंकने के लिए इस्तेमाल नहीं होता</string>
+    <string name="consent_motion_dont_2">कभी इस फ़ोन से खुद बाहर नहीं जाता</string>
+    <string name="consent_motion_stores">कुछ नहीं। मोशन को लाइव प्रोसेस किया जाता है और तुरंत मिटा दिया जाता है, कभी सेव नहीं होता।</string>
+    <string name="consent_motion_cta">मोशन सेंसिंग की अनुमति दें</string>
+
+    <string name="consent_sms_title">एसएमएस</string>
+    <string name="consent_sms_reason">ताकि सिग्नल न होने पर भी अलर्ट मदद तक पहुंच सके</string>
+    <string name="consent_sms_do_1">केवल तब भेजा जाता है जब दुर्घटना की पुष्टि हो और इंटरनेट काम न करे</string>
+    <string name="consent_sms_do_2">एक इमरजेंसी नंबर पर एक संदेश</string>
+    <string name="consent_sms_dont_1">कभी किसी और संदेश के लिए इस्तेमाल नहीं होता</string>
+    <string name="consent_sms_dont_2">आपके बाकी मैसेज कभी नहीं पढ़ता</string>
+    <string name="consent_sms_stores">अगर अलर्ट कभी भेजा भी जाए, तो उस एक संदेश के अलावा कुछ नहीं।</string>
+    <string name="consent_sms_cta">एसएमएस की अनुमति दें</string>
+    <string name="consent_sms_extra_line">सिर्फ़ एक संदेश, सिर्फ़ तब जब आपकी दुर्घटना हो, सिर्फ़ तब जब इंटरनेट न हो। सामान्य एसएमएस दरें लागू होंगी। हम आपके संदेश कभी नहीं पढ़ते।</string>
+
+    <string name="onboarding_contacts_title">इमरजेंसी संपर्क</string>
+    <string name="onboarding_contacts_subtitle">उन 5 लोगों तक को जोड़ें जिन्हें हम सबसे पहले सूचित करेंगे।</string>
+    <string name="onboarding_contacts_add">संपर्कों से जोड़ें</string>
+    <string name="onboarding_contacts_empty">अभी तक कोई संपर्क नहीं जोड़ा गया।</string>
+    <string name="onboarding_contacts_limit_reached">आप अधिकतम पाँच जोड़ सकते हैं।</string>
+    <string name="onboarding_contacts_skip">अभी छोड़ें</string>
+    <string name="onboarding_contacts_continue">जारी रखें</string>
+
+    <string name="onboarding_medical_title">मेडिकल प्रोफ़ाइल</string>
+    <string name="onboarding_medical_subtitle">वैकल्पिक। मदद करने वालों को तेज़ी से मदद करने में सहायक।</string>
+    <string name="onboarding_medical_blood_group">ब्लड ग्रुप</string>
+    <string name="onboarding_medical_allergies">एलर्जी</string>
+    <string name="onboarding_medical_conditions">बीमारियाँ</string>
+    <string name="onboarding_medical_organ_donor">अंगदान</string>
+    <string name="onboarding_medical_encryption_line">इस फ़ोन पर एन्क्रिप्टेड। केवल पुष्टि की गई दुर्घटना के बाद ही इमरजेंसी सेवाओं को भेजा जाता है।</string>
+    <string name="onboarding_medical_skip">छोड़ें</string>
+    <string name="onboarding_medical_continue">जारी रखें</string>
+
+    <string name="onboarding_battery_headline">एक और ज़रूरी काम, वरना यह काम नहीं करेगा</string>
+    <string name="onboarding_battery_body">कुछ फ़ोन बैकग्राउंड में चल रहे ऐप को सख़्ती से बंद कर देते हैं। इस ऐप को बिना रोक-टोक चलने की अनुमति दें ताकि यह स्क्रीन बंद होने पर भी दुर्घटना का पता लगा सके।</string>
+    <string name="onboarding_battery_cta">बैटरी सेटिंग्स खोलें</string>
+    <string name="onboarding_battery_protection_active">सुरक्षा सक्रिय है</string>
+    <string name="onboarding_battery_protection_limited">सुरक्षा सीमित है</string>
+    <string name="onboarding_battery_continue">जारी रखें</string>
+
+    <string name="onboarding_ready_headline">आप सुरक्षित हैं।</string>
+    <string name="onboarding_ready_status_detection">दुर्घटना पहचान: सक्रिय</string>
+    <string name="onboarding_ready_status_fallback_live">एसएमएस फ़ॉलबैक: सक्रिय</string>
+    <string name="onboarding_ready_status_fallback_off">एसएमएस फ़ॉलबैक: अनुमति नहीं</string>
+    <string name="onboarding_ready_status_language">भाषा: %1$s</string>
+    <string name="onboarding_ready_done">पूर्ण</string>
+</resources>

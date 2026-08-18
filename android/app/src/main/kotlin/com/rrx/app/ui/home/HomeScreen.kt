@@ -20,12 +20,13 @@ import com.rrx.app.ui.drive.DriveSection
 import com.rrx.app.ui.transport.TransportSection
 
 /**
- * The scaffold's real screen: registers this device against the live
- * backend, hosts Drive Mode (core-sensing's IMU/GPS/Stage-A pipeline,
- * wired to core-detection's classifier), and a transport test surface
- * (core-transport's HTTPS/SMS channel strategy against a simulated
- * payload). Still out of scope: the cancel-window screen and onboarding
- * -- see MVP-PLAN.md §3.3.
+ * The scaffold's real screen, shown once [com.rrx.app.ui.onboarding.OnboardingFlowHost]
+ * completes: registers this device against the live backend, hosts Drive
+ * Mode (core-sensing's IMU/GPS/Stage-A pipeline, wired to core-detection's
+ * classifier), and a transport test surface (core-transport's HTTPS/SMS
+ * channel strategy against a simulated payload). Still out of scope:
+ * Drive Mode's real UI (map, Segment Ribbon, risk warnings) -- see
+ * MVP-PLAN.md §3.3.
  */
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
@@ -39,9 +40,9 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
             Text("Road-Risk & Golden-Hour Response", style = MaterialTheme.typography.headlineMedium)
             Text(
                 "Android scaffold -- proves the toolchain and the device-registration, " +
-                    "sensing/detection, and transport contracts against the real backend " +
-                    "and real hardware APIs. The cancel-window screen and onboarding are " +
-                    "not implemented yet.",
+                    "sensing/detection, transport, cancel-window, and onboarding contracts " +
+                    "against the real backend and real hardware APIs. Drive Mode's real UI " +
+                    "(map, Segment Ribbon, risk warnings) is not implemented yet.",
                 style = MaterialTheme.typography.bodyMedium,
             )
 

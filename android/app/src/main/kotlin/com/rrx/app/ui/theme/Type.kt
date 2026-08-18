@@ -50,3 +50,14 @@ val RrxTypography = Typography(
         lineHeight = (12 * 1.4).sp,
     ),
 )
+
+// The remaining §6.2 tokens onboarding needs that have no Material3
+// Typography slot to live in (Typography's named slots are already spoken
+// for above) -- raw TextStyle constants instead, same pattern Color.kt
+// uses for tokens outside MaterialTheme.colorScheme.
+val TypeDisplay1 = TextStyle(fontFamily = DisplayFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 48.sp, lineHeight = (48 * 1.1).sp)
+val TypeDisplay2 = TextStyle(fontFamily = DisplayFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 36.sp, lineHeight = (36 * 1.15).sp)
+val TypeHeading2 = TextStyle(fontFamily = InterfaceFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = (22 * 1.3).sp)
+val TypeLabel = TextStyle(fontFamily = InterfaceFontFamily, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = (13 * 1.4).sp)
+val TypeCaption = TextStyle(fontFamily = InterfaceFontFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = (12 * 1.4).sp)
+val TypeOverline = TextStyle(fontFamily = InterfaceFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, lineHeight = (11 * 1.2).sp, letterSpacing = 1.sp)

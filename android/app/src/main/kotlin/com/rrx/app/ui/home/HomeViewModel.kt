@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.rrx.app.device.DeviceIdentity
 import com.rrx.app.network.RrxApi
 import com.rrx.app.network.dto.DeviceRegisterRequest
+import com.rrx.coredata.OnboardingStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ sealed interface RegistrationState {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val api: RrxApi,
+    private val onboardingStore: OnboardingStore,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -41,7 +43,7 @@ class HomeViewModel @Inject constructor(
             try {
                 val response = api.registerDevice(
                     DeviceRegisterRequest(
-                        deviceHash = DeviceIdentity.saltedHash(context),
+                        deviceHash = DeviceIdentity.saltedHash(context, onboardingStore),
                         model = Build.MODEL,
                         androidVersion = Build.VERSION.RELEASE,
                         appVersion = "0.1.0-scaffold",

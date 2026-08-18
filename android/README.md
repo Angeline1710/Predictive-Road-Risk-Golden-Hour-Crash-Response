@@ -31,7 +31,7 @@ tap "Register device."
 | `core-sensing` | **Real**, 2026-08-18: `ImuRingBuffer` + `StageAGate` (mirrors `ml/crash_detection/build_dataset.py`'s `stage_a_pass()` full/degraded logic exactly, 14 unit tests), `ImuSensorSource` (real SensorManager, TYPE_LINEAR_ACCELERATION + TYPE_GYROSCOPE), `GpsSpeedSource` (FusedLocationProviderClient), `DrivingDetector` (Activity Recognition IN_VEHICLE transitions), `DriveSensingService` (foreground service tying it together, publishing raw IMU/GPS window snapshots for core-detection to consume) |
 | `core-detection` | **Real**, 2026-08-19: `TabularFeatures` ports `saturation_features()`/`gps_features()` to Kotlin (2 unit tests, one pinning a hand-computed 26-value example field by field). `CrashClassifier` loads the bundled `crash_fusion_deployable_v1.tflite` and runs it via its real named signature. `app`'s `DriveViewModel` wires the two together: on the rising edge of Stage-A's degraded arm, extracts features and classifies, off the main thread, guarded against concurrent invocation into the same (not thread-safe) `Interpreter` |
 | `core-transport` | **Real**, 2026-08-19: `Rrx1Codec` ports `encode_rrx1()`/`crc8_atm()` to Kotlin, verified byte-for-byte against two concrete outputs from the real Python implementation (3 unit tests). `AlertApi`/DTOs mirror `AlertCreate` field-for-field -- the exact JSON they produce was POSTed with `curl` straight at the live backend and returned a real `202`. `AlertTransport` implements PRD §6.2's channel strategy (HTTPS 6s deadline, SMS 15s deadline, parallel-not-sequential on CRITICAL); `AlertSendWorker` is a plain `CoroutineWorker` (no Hilt-Work) retrying up to 24h on failure. `app`'s `TransportSection` exercises the whole path with an `is_simulated = true` test payload, the same "one real screen proves the contract" pattern as device registration |
-| `core-data` | Placeholder only. Room offline queue, EncryptedSharedPreferences token/medical storage: not built |
+| `core-data` | **Real, 2026-08-19**: `EmergencyContact`/`EmergencyContactDao`/`RrxDatabase` (Room, one table) and `OnboardingStore` (EncryptedSharedPreferences: consent flags, medical profile, selected language, `hasCompletedOnboarding`, and `DeviceIdentity`'s salt -- previously process-lifetime-only, now actually persisted, closing a gap that module's own placeholder comment had named). The offline alert-retry queue and cached risk-tile storage from the original placeholder comment are still unbuilt |
 
 `app`'s crash flow (§15-17), **real, 2026-08-19**: `CrashCountdownScreen`
 renders the full-bleed sodium ground, 200sp countdown numeral, drain bar,
@@ -51,6 +51,32 @@ cancelled), `CrashCountdownViewModel` builds a real `AlertCreateDto`
 (`isSimulated = false`) from the params captured at trigger time and
 calls the real `AlertTransport.send()` -- this is the one path in the
 app that produces a non-simulated alert.
+
+`app`'s onboarding flow (§11), **real, 2026-08-19**: `OnboardingViewModel`
+drives all nine steps (Promise -> Language -> Location/Motion/SMS consent
+cards -> Contacts -> Medical -> Battery -> Ready) as a single linear
+index into `OnboardingStep.ALL`, the same "one state, one screen dispatch"
+shape as `CrashFlowHost` but without that flow's cancel/expire branching,
+since onboarding only ever advances or skips. `MainActivity` gates
+`HomeScreen` behind `OnboardingFlowHost` until `OnboardingViewModel.finished`
+flips, seeded from `OnboardingStore.hasCompletedOnboarding` so a returning
+user's second cold start doesn't repeat it. Each consent card requests
+exactly one real Android runtime permission (`RequestPermission`, never
+`RequestMultiplePermissions`) per UX-APPFLOW.md §11.3's "never a batch
+request" -- Location follows up `ACCESS_FINE_LOCATION` with a genuinely
+separate `ACCESS_BACKGROUND_LOCATION` request on API 29+, since the two
+can't be requested together. Contacts are picked directly against
+`ContactsContract.CommonDataKinds.Phone.CONTENT_URI` so the one URI the
+system grants temporary read access to on return is also the one queried
+for name/number -- no `READ_CONTACTS` permission declared or needed.
+Battery optimisation verification is real: `PowerManager.isIgnoringBatteryOptimizations()`
+is re-checked on every `ON_RESUME`, not just once, so `PROTECTION ACTIVE`/
+`PROTECTION LIMITED` reflects the actual state, not an assumption.
+Language selection calls the real `AppCompatDelegate.setApplicationLocales`
+per-app-language API (works down to minSdk 26 via AndroidX's backport,
+not just the API 33+ OS feature) and previews the crash line via a real
+`TextToSpeech` instance, checking `isLanguageAvailable()` for the
+`VOICE PACK NEEDED` chip rather than guessing.
 
 Still missing: onboarding, drive-mode UI beyond the raw sensor/
 classification readout, always-on driving detection, and `core-data`.
@@ -179,6 +205,49 @@ See MVP-PLAN.md §3.3 for what's left and its cost.
   would just hit the same background-activity-start restriction the
   full-screen-intent mechanism exists to bypass.
 
+### Onboarding scope notes (real limitations, not oversights)
+
+- **Never run on a device or emulator**, same caveat as every other
+  module -- `assembleDebug` proves the flow packages correctly (Room,
+  security-crypto, appcompat, and five locales' resources all resolve
+  and merge); it doesn't prove a real contact picker, a real TTS voice
+  pack, or a real Settings deep-link actually behave as coded on a
+  physical phone.
+- **No OEM-specific battery-optimisation deep links.** UX-APPFLOW.md
+  §11.5 asks for "brand-specific instructions with a screenshot of
+  *their* settings screen" for Xiaomi/Oppo/Vivo/Realme. Those intents
+  (component names, action strings) are undocumented, vendor-specific,
+  and drift across ROM versions; this project has no matching hardware
+  to verify them against, so `BatteryScreen` only ever deep-links to the
+  one real, documented, universal fallback the spec's own text names:
+  `Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS`. Shipping
+  guessed OEM intents presented as working would be exactly the kind of
+  unverified claim this project has deliberately avoided elsewhere (see
+  the crash-classifier severity-mapping and audio-placeholder notes
+  above) -- a real gap, left honest rather than faked.
+- **The four non-English translations (Hindi, Tamil, Telugu, Bengali)
+  are AI-generated, not reviewed by a native speaker.** Each locale file
+  says so in its own header comment. PRD.md G4/§7 and UX-APPFLOW.md §6.4
+  both call for "full driver-facing UX in ≥5 languages at demo"; this
+  pass builds the real architecture (proper `strings.xml` resources, not
+  hardcoded copy; real per-app locale switching via `AppCompatDelegate`;
+  real TTS preview per language) and fills in genuine translations for
+  every onboarding string, but translation quality for a life-safety
+  product's copy needs a native speaker's review before any real demo
+  leans on a non-English locale -- verify before relying on it.
+- **Emergency contacts and medical profile never reach the backend.**
+  `EmergencyContact` rows live in Room and `OnboardingStore`'s fields are
+  encrypted at rest, both purely local -- there is no Android API call
+  syncing either to the backend's already-existing `emergency_contacts`
+  table or `devices.consent_flags`/`devices.locale` columns (PRD.md §9).
+  A real alert payload today still can't include emergency-contact or
+  medical data a responder would want; wiring that sync is a `core-transport`/
+  backend-contract task this pass didn't scope in.
+- **Room has no at-rest encryption.** `OnboardingStore`'s medical/consent
+  data is encrypted (EncryptedSharedPreferences, per PRD.md §12.6);
+  `RrxDatabase`'s `emergency_contacts` table is not -- SQLCipher would
+  close that gap but wasn't pulled in for one table in this pass. Contact
+  names/numbers sit in a plain SQLite file on disk.
 ## Known gaps worth knowing about before extending this
 
 - **No embedded fonts.** `ui/theme/Type.kt` falls back to the platform
@@ -186,10 +255,6 @@ See MVP-PLAN.md §3.3 for what's left and its cost.
   Mono — this tool can't produce binary `.ttf`/`.otf` assets. Add the real
   variable fonts to `app/src/main/res/font/` and wire them in before any
   screenshot that's meant to represent the final typography.
-- **`DeviceIdentity`'s salt is process-lifetime only**, not persisted —
-  every cold start currently registers what looks like a new device. The
-  real fix (a salt persisted in `EncryptedSharedPreferences`) belongs in
-  `core-data`, which doesn't exist yet.
 - **No launcher icon**, no adaptive icon set — `AndroidManifest.xml`
   points at a platform placeholder drawable on purpose.
 - **Real bugs the Docker verification caught in the sensing pass** (fixed,
@@ -237,3 +302,38 @@ See MVP-PLAN.md §3.3 for what's left and its cost.
   ever ran, so it never shows up in a build log, but it's the same
   "verify against the real API surface, not what sounds plausible"
   discipline the rest of this project has needed repeatedly.
+- **Real bugs the onboarding pass added:** the XML `--`-in-comment bug
+  recurred a *fourth* time -- this time in `strings.xml` doc comments
+  (both the English file's own reasoning comments and, separately, all
+  four locale files' "AI-generated, not reviewed" disclaimer headers),
+  and again failed the build with the exact same
+  `com.android.build.gradle.tasks.ResourceException`, this time from
+  `:app:mergeDebugResources` rather than the manifest merger. Four
+  occurrences across four passes, three different XML file types
+  (manifest, and now string resources) -- the lesson from the crash-screen
+  pass ("grep for `--` before touching *any* XML comment in this
+  codebase") evidently didn't generalize past manifests specifically the
+  first three times; it needs to be "any XML file," full stop. Second, a
+  self-inflicted dead-code bug caught on review before it ever reached
+  Docker: `PromiseScreen.kt`'s "How this works" dialog title first read
+  `style = TypeDisplay1.copy(fontSize = TextUnit.Unspecified).let { RrxTypography.titleMedium }`
+  -- a `.copy()` call whose result was immediately discarded by the
+  trailing `.let`, exactly the "dead expression that happens to compile"
+  bug class the crash-screen pass's `Modifier.background(Color.Transparent).let { it }`
+  was. Third, a real (if minor) Compose API-surface bug the Docker
+  compile itself caught: `ClickableText` is deprecated in this BOM in
+  favour of `Text`/`BasicText` with a `LinkAnnotation`; compiled with a
+  warning, not an error, but replaced with a plain `Text` + `Modifier.clickable`
+  (the same pattern the crash-screen cancel button already uses) rather
+  than ship new code against a deprecated API on day one.
+- **A logic bug caught on review, before any build**: `OnboardingViewModel`'s
+  `finished` and `selectedLanguage` `StateFlow`s were first written with
+  hardcoded initial values (`false`, and `OnboardingLanguages.first()`)
+  rather than seeded from `OnboardingStore`. Since the ViewModel is
+  recreated fresh on every cold start, that would have sent a *returning*
+  user -- someone whose device already has `hasCompletedOnboarding = true`
+  persisted from a previous session -- through all nine onboarding steps
+  again every single launch. Fixed by seeding both from the store before
+  the bug ever ran against real Gradle output; the kind of mistake unit
+  tests wouldn't have caught either, since nothing here was type-incorrect
+  or even behaviorally wrong for a *first* cold start, only a second one.

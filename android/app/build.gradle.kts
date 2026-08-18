@@ -70,6 +70,18 @@ dependencies {
     ksp("com.google.dagger:hilt-android-compiler:2.52")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
+    // CoreDataModule builds the Room database here (the @Database itself
+    // is defined in core-data); no KSP needed in this module since no
+    // @Dao/@Database annotations live in app's own sources.
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+
+    // Per-app language switching (UX-APPFLOW.md §11.2) via
+    // AppCompatDelegate.setApplicationLocales -- AndroidX's backport works
+    // down to this project's minSdk 26, not just the API 33+ OS-level
+    // per-app-language feature.
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
     // PRD.md §12.1: Retrofit 2 + OkHttp 4 + kotlinx.serialization.
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")

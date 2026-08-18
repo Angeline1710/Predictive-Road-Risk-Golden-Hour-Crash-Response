@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI-generated Tamil translation, not reviewed by a native speaker;
+  see android/README.md's onboarding scope notes. Verify before any real
+  demo that leans on this locale.
+-->
+<resources>
+    <string name="app_name">சாலை-ஆபத்து பதில்</string>
+
+    <string name="onboarding_promise_headline">நீங்கள் விபத்தில் சிக்கி அழைக்க முடியாவிட்டால், உங்கள் தொலைபேசி அழைக்கும்.</string>
+    <string name="onboarding_promise_sub">இந்த தொலைபேசியில் வேலை செய்கிறது. இணையம் இல்லாமலும் வேலை செய்கிறது. உங்கள் மொழியில் வேலை செய்கிறது.</string>
+    <string name="onboarding_promise_cta">பாதுகாப்பை அமைக்கவும்</string>
+    <string name="onboarding_promise_how">இது எப்படி வேலை செய்கிறது</string>
+
+    <string name="onboarding_language_title">உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்</string>
+    <string name="onboarding_language_subtitle">இதை பின்னர் அமைப்புகளில் மாற்றலாம்.</string>
+    <string name="onboarding_language_preview_line">விபத்து கண்டறியப்பட்டது. பத்து வினாடிகளில் எச்சரிக்கை அனுப்பப்படுகிறது.</string>
+    <string name="onboarding_language_voice_pack_needed">குரல் தொகுப்பு தேவை</string>
+    <string name="onboarding_language_continue">தொடரவும்</string>
+
+    <string name="consent_not_now">இப்போது வேண்டாம்</string>
+
+    <string name="consent_location_title">இருப்பிடம்</string>
+    <string name="consent_location_reason">மீட்பர்கள் எங்கு வர வேண்டும் என்று தெரிந்துகொள்ள</string>
+    <string name="consent_location_do_1">விபத்து உறுதி செய்யப்படும்போது மட்டுமே அனுப்பப்படும்</string>
+    <string name="consent_location_do_2">முன்னால் உள்ள சாலை பற்றி எச்சரிக்க பயன்படுத்தப்படும்</string>
+    <string name="consent_location_dont_1">தொடர்ந்து பதிவேற்றப்படாது</string>
+    <string name="consent_location_dont_2">விற்கப்படாது, பகிரப்படாது, விளம்பரம் செய்யப்படாது</string>
+    <string name="consent_location_stores">உங்கள் விபத்து இருப்பிடம். வானிலைக்கு ~250 சதுர கி.மீ பகுதி. வேறு எதுவும் இல்லை.</string>
+    <string name="consent_location_cta">இருப்பிடத்தை அனுமதிக்கவும்</string>
+
+    <string name="consent_motion_title">இயக்கம்</string>
+    <string name="consent_motion_reason">ஒரு உண்மையான விபத்தையும் குழியையும் வேறுபடுத்த</string>
+    <string name="consent_motion_do_1">இந்த தொலைபேசியிலேயே விபத்தின் இயக்க வடிவத்தை கண்டறிய பயன்படுத்தப்படும்</string>
+    <string name="consent_motion_do_2">டிரைவ் மோட் இயக்கத்தில் இருக்கும்போது மட்டுமே இயங்கும்</string>
+    <string name="consent_motion_dont_1">உங்கள் ஓட்டுநர் திறனை மதிப்பிட ஒருபோதும் பயன்படுத்தப்படாது</string>
+    <string name="consent_motion_dont_2">இந்த தொலைபேசியை விட்டு தானாக வெளியேறாது</string>
+    <string name="consent_motion_stores">எதுவும் இல்லை. இயக்கம் நேரடியாக செயலாக்கப்பட்டு உடனே அழிக்கப்படும், ஒருபோதும் பதிவு செய்யப்படாது.</string>
+    <string name="consent_motion_cta">இயக்க உணர்வை அனுமதிக்கவும்</string>
+
+    <string name="consent_sms_title">எஸ்எம்எஸ்</string>
+    <string name="consent_sms_reason">சிக்னல் இல்லாத போதும் எச்சரிக்கை உதவியை சென்றடைய</string>
+    <string name="consent_sms_do_1">விபத்து உறுதி செய்யப்பட்டு இணையம் தோல்வியடையும் போது மட்டுமே அனுப்பப்படும்</string>
+    <string name="consent_sms_do_2">ஒரு அவசர எண்ணுக்கு ஒரு செய்தி</string>
+    <string name="consent_sms_dont_1">வேறு எந்த செய்திக்கும் ஒருபோதும் பயன்படுத்தப்படாது</string>
+    <string name="consent_sms_dont_2">உங்கள் மற்ற செய்திகளை ஒருபோதும் படிக்காது</string>
+    <string name="consent_sms_stores">எப்போதாவது அனுப்பப்பட்டால், அந்த ஒரு எச்சரிக்கை செய்தியைத் தவிர வேறு எதுவும் இல்லை.</string>
+    <string name="consent_sms_cta">எஸ்எம்எஸை அனுமதிக்கவும்</string>
+    <string name="consent_sms_extra_line">ஒரே ஒரு செய்தி மட்டுமே, நீங்கள் விபத்தில் சிக்கும்போது மட்டுமே, இணையம் இல்லாதபோது மட்டுமே. வழக்கமான எஸ்எம்எஸ் கட்டணங்கள் பொருந்தும். நாங்கள் உங்கள் செய்திகளை ஒருபோதும் படிக்க மாட்டோம்.</string>
+
+    <string name="onboarding_contacts_title">அவசர தொடர்புகள்</string>
+    <string name="onboarding_contacts_subtitle">நாங்கள் முதலில் எச்சரிக்கும் 5 பேர் வரை சேர்க்கவும்.</string>
+    <string name="onboarding_contacts_add">தொடர்புகளில் இருந்து சேர்க்கவும்</string>
+    <string name="onboarding_contacts_empty">இதுவரை தொடர்புகள் சேர்க்கப்படவில்லை.</string>
+    <string name="onboarding_contacts_limit_reached">அதிகபட்சம் ஐந்து பேரை சேர்க்கலாம்.</string>
+    <string name="onboarding_contacts_skip">இப்போதைக்கு தவிர்க்கவும்</string>
+    <string name="onboarding_contacts_continue">தொடரவும்</string>
+
+    <string name="onboarding_medical_title">மருத்துவ விவரம்</string>
+    <string name="onboarding_medical_subtitle">விருப்பத்தேர்வு. மீட்பர்கள் விரைவாக உதவ உதவும்.</string>
+    <string name="onboarding_medical_blood_group">இரத்த வகை</string>
+    <string name="onboarding_medical_allergies">ஒவ்வாமைகள்</string>
+    <string name="onboarding_medical_conditions">உடல்நலக் குறைபாடுகள்</string>
+    <string name="onboarding_medical_organ_donor">உறுப்பு தானம்</string>
+    <string name="onboarding_medical_encryption_line">இந்த தொலைபேசியில் குறியாக்கம் செய்யப்பட்டுள்ளது. உறுதி செய்யப்பட்ட விபத்திற்குப் பிறகு மட்டுமே அவசர சேவைகளுக்கு அனுப்பப்படும்.</string>
+    <string name="onboarding_medical_skip">தவிர்க்கவும்</string>
+    <string name="onboarding_medical_continue">தொடரவும்</string>
+
+    <string name="onboarding_battery_headline">இன்னும் ஒன்று, இல்லையெனில் இது வேலை செய்யாது</string>
+    <string name="onboarding_battery_body">சில தொலைபேசிகள் பின்னணியில் இயங்கும் பயன்பாடுகளை கடுமையாக நிறுத்திவிடும். திரை அணைந்திருக்கும் போதும் விபத்தை கண்டறிய, இந்த பயன்பாட்டை கட்டுப்பாடு இல்லாமல் இயங்க அனுமதிக்கவும்.</string>
+    <string name="onboarding_battery_cta">பேட்டரி அமைப்புகளைத் திறக்கவும்</string>
+    <string name="onboarding_battery_protection_active">பாதுகாப்பு செயலில் உள்ளது</string>
+    <string name="onboarding_battery_protection_limited">பாதுகாப்பு குறைவாக உள்ளது</string>
+    <string name="onboarding_battery_continue">தொடரவும்</string>
+
+    <string name="onboarding_ready_headline">நீங்கள் பாதுகாக்கப்படுகிறீர்கள்.</string>
+    <string name="onboarding_ready_status_detection">விபத்து கண்டறிதல்: செயலில்</string>
+    <string name="onboarding_ready_status_fallback_live">எஸ்எம்எஸ் மாற்று: செயலில்</string>
+    <string name="onboarding_ready_status_fallback_off">எஸ்எம்எஸ் மாற்று: அனுமதிக்கப்படவில்லை</string>
+    <string name="onboarding_ready_status_language">மொழி: %1$s</string>
+    <string name="onboarding_ready_done">முடிந்தது</string>
+</resources>

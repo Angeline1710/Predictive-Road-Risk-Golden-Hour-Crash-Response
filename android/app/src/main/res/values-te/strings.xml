@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI-generated Telugu translation, not reviewed by a native speaker;
+  see android/README.md's onboarding scope notes. Verify before any real
+  demo that leans on this locale.
+-->
+<resources>
+    <string name="app_name">రోడ్-రిస్క్ రెస్పాన్స్</string>
+
+    <string name="onboarding_promise_headline">మీకు ప్రమాదం జరిగి కాల్ చేయలేకపోతే, మీ ఫోన్ చేస్తుంది.</string>
+    <string name="onboarding_promise_sub">ఈ ఫోన్‌లో పని చేస్తుంది. ఇంటర్నెట్ లేకుండా పని చేస్తుంది. మీ భాషలో పని చేస్తుంది.</string>
+    <string name="onboarding_promise_cta">రక్షణను సెటప్ చేయండి</string>
+    <string name="onboarding_promise_how">ఇది ఎలా పనిచేస్తుంది</string>
+
+    <string name="onboarding_language_title">మీ భాషను ఎంచుకోండి</string>
+    <string name="onboarding_language_subtitle">దీన్ని తర్వాత సెట్టింగ్‌లలో మార్చుకోవచ్చు.</string>
+    <string name="onboarding_language_preview_line">ప్రమాదం గుర్తించబడింది. పది సెకన్లలో అలర్ట్ పంపబడుతోంది.</string>
+    <string name="onboarding_language_voice_pack_needed">వాయిస్ ప్యాక్ అవసరం</string>
+    <string name="onboarding_language_continue">కొనసాగించండి</string>
+
+    <string name="consent_not_now">ఇప్పుడు వద్దు</string>
+
+    <string name="consent_location_title">లొకేషన్</string>
+    <string name="consent_location_reason">స్పందనదారులకు ఎక్కడికి రావాలో తెలియజేయడానికి</string>
+    <string name="consent_location_do_1">ప్రమాదం నిర్ధారించబడినప్పుడు మాత్రమే పంపబడుతుంది</string>
+    <string name="consent_location_do_2">ముందున్న రహదారి గురించి హెచ్చరించడానికి ఉపయోగించబడుతుంది</string>
+    <string name="consent_location_dont_1">ఎప్పటికీ నిరంతరం అప్‌లోడ్ చేయబడదు</string>
+    <string name="consent_location_dont_2">ఎప్పటికీ అమ్మబడదు, పంచుకోబడదు, ప్రకటించబడదు</string>
+    <string name="consent_location_stores">మీ ప్రమాద స్థానం. వాతావరణం కోసం ~250 చ.కి.మీ ప్రాంతం. మరేమీ లేదు.</string>
+    <string name="consent_location_cta">లొకేషన్‌ను అనుమతించండి</string>
+
+    <string name="consent_motion_title">మోషన్</string>
+    <string name="consent_motion_reason">నిజమైన ప్రమాదాన్ని గుంతతో పోల్చకుండా గుర్తించడానికి</string>
+    <string name="consent_motion_do_1">ఈ ఫోన్‌లోనే ప్రమాదపు కదలిక సంతకాన్ని గుర్తించడానికి ఉపయోగించబడుతుంది</string>
+    <string name="consent_motion_do_2">డ్రైవ్ మోడ్ ఆన్‌లో ఉన్నప్పుడు మాత్రమే పనిచేస్తుంది</string>
+    <string name="consent_motion_dont_1">మీ డ్రైవింగ్‌ను రేట్ చేయడానికి ఎప్పటికీ ఉపయోగించబడదు</string>
+    <string name="consent_motion_dont_2">ఈ ఫోన్ నుండి దానంతట అదే ఎప్పటికీ బయటకు వెళ్లదు</string>
+    <string name="consent_motion_stores">ఏమీ లేదు. మోషన్ ప్రత్యక్షంగా ప్రాసెస్ చేయబడి వెంటనే తొలగించబడుతుంది, ఎప్పటికీ లాగ్ చేయబడదు.</string>
+    <string name="consent_motion_cta">మోషన్ సెన్సింగ్‌ను అనుమతించండి</string>
+
+    <string name="consent_sms_title">ఎస్ఎంఎస్</string>
+    <string name="consent_sms_reason">సిగ్నల్ లేనప్పుడు కూడా అలర్ట్ సహాయానికి చేరేలా</string>
+    <string name="consent_sms_do_1">ప్రమాదం నిర్ధారించబడి ఇంటర్నెట్ విఫలమైనప్పుడు మాత్రమే పంపబడుతుంది</string>
+    <string name="consent_sms_do_2">ఒక అత్యవసర నంబర్‌కు ఒక సందేశం</string>
+    <string name="consent_sms_dont_1">మరే ఇతర సందేశానికి ఎప్పటికీ ఉపయోగించబడదు</string>
+    <string name="consent_sms_dont_2">మీ ఇతర సందేశాలను ఎప్పటికీ చదవదు</string>
+    <string name="consent_sms_stores">ఎప్పుడైనా పంపబడితే, ఆ ఒక్క అలర్ట్ సందేశం తప్ప మరేమీ లేదు.</string>
+    <string name="consent_sms_cta">ఎస్ఎంఎస్‌ను అనుమతించండి</string>
+    <string name="consent_sms_extra_line">కేవలం ఒక్క సందేశం మాత్రమే, మీకు ప్రమాదం జరిగినప్పుడు మాత్రమే, ఇంటర్నెట్ లేనప్పుడు మాత్రమే. సాధారణ ఎస్ఎంఎస్ ఛార్జీలు వర్తిస్తాయి. మేము మీ సందేశాలను ఎప్పటికీ చదవము.</string>
+
+    <string name="onboarding_contacts_title">అత్యవసర పరిచయాలు</string>
+    <string name="onboarding_contacts_subtitle">మేము మొదట హెచ్చరించే 5 మంది వరకు జోడించండి.</string>
+    <string name="onboarding_contacts_add">పరిచయాల నుండి జోడించండి</string>
+    <string name="onboarding_contacts_empty">ఇంకా పరిచయాలు జోడించలేదు.</string>
+    <string name="onboarding_contacts_limit_reached">మీరు గరిష్టంగా ఐదు మందిని జోడించవచ్చు.</string>
+    <string name="onboarding_contacts_skip">ప్రస్తుతానికి దాటవేయండి</string>
+    <string name="onboarding_contacts_continue">కొనసాగించండి</string>
+
+    <string name="onboarding_medical_title">వైద్య ప్రొఫైల్</string>
+    <string name="onboarding_medical_subtitle">ఐచ్ఛికం. స్పందనదారులకు వేగంగా సహాయం చేయడంలో సహాయపడుతుంది.</string>
+    <string name="onboarding_medical_blood_group">రక్త వర్గం</string>
+    <string name="onboarding_medical_allergies">అలర్జీలు</string>
+    <string name="onboarding_medical_conditions">వ్యాధులు</string>
+    <string name="onboarding_medical_organ_donor">అవయవ దానం</string>
+    <string name="onboarding_medical_encryption_line">ఈ ఫోన్‌లో ఎన్‌క్రిప్ట్ చేయబడింది. నిర్ధారించబడిన ప్రమాదం తర్వాత మాత్రమే అత్యవసర సేవలకు పంపబడుతుంది.</string>
+    <string name="onboarding_medical_skip">దాటవేయండి</string>
+    <string name="onboarding_medical_continue">కొనసాగించండి</string>
+
+    <string name="onboarding_battery_headline">ఇంకో ఒక్క విషయం, లేకపోతే ఇది పనిచేయదు</string>
+    <string name="onboarding_battery_body">కొన్ని ఫోన్‌లు నేపథ్యంలో నడుస్తున్న యాప్‌లను తీవ్రంగా ఆపేస్తాయి. స్క్రీన్ ఆఫ్‌లో ఉన్నప్పుడు కూడా ప్రమాదాన్ని గుర్తించగలిగేలా ఈ యాప్‌ను ఎలాంటి ఆంక్షలు లేకుండా నడవడానికి అనుమతించండి.</string>
+    <string name="onboarding_battery_cta">బ్యాటరీ సెట్టింగ్‌లను తెరవండి</string>
+    <string name="onboarding_battery_protection_active">రక్షణ చురుకుగా ఉంది</string>
+    <string name="onboarding_battery_protection_limited">రక్షణ పరిమితం చేయబడింది</string>
+    <string name="onboarding_battery_continue">కొనసాగించండి</string>
+
+    <string name="onboarding_ready_headline">మీరు రక్షించబడ్డారు.</string>
+    <string name="onboarding_ready_status_detection">ప్రమాద గుర్తింపు: యాక్టివ్</string>
+    <string name="onboarding_ready_status_fallback_live">ఎస్ఎంఎస్ ఫాల్‌బ్యాక్: యాక్టివ్</string>
+    <string name="onboarding_ready_status_fallback_off">ఎస్ఎంఎస్ ఫాల్‌బ్యాక్: అనుమతించబడలేదు</string>
+    <string name="onboarding_ready_status_language">భాష: %1$s</string>
+    <string name="onboarding_ready_done">పూర్తయింది</string>
+</resources>
