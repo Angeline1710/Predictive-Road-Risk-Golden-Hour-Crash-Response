@@ -1,0 +1,12 @@
+# Trained model artifacts must never have line endings rewritten by git.
+# LightGBM's .txt model format is line-based text, which is exactly the kind
+# of file `core.autocrlf`/git's own text heuristic is most likely to "helpfully"
+# convert -- silently corrupting nothing visible until a byte-for-byte parse
+# depends on it. TFLite/Keras/npz are flatbuffer/HDF5/zip binary and would
+# normally be auto-detected, but marked explicitly here rather than relying
+# on that per-platform heuristic.
+**/risk_model_v1.txt -text
+*.tflite -text
+*.keras -text
+*.npz -text
+*.npy -text

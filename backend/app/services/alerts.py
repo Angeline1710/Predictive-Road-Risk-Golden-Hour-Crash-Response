@@ -14,8 +14,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.gateways.base import DispatchGateway, GatewayRejected, GatewayTimeout
+from app.ml.risk_model import features_from_segment
+from app.ml.risk_model import predict as predict_risk
 from app.models.alert import Alert, AlertChannel, AlertEvent, AlertStatus
 from app.models.dispatch import Dispatch
+from app.models.road import RoadSegment
 from app.schemas.alert import AlertCreate, AlertResponse, DispatchInfo, NearestUnit, RiskContext
 from app.schemas.dispatch import (
     DispatchContact,
@@ -25,6 +28,7 @@ from app.schemas.dispatch import (
     VictimHint,
 )
 from app.services.enrichment import enrich
+from app.services.events import publish_event
 from app.services.responders import find_nearest
 
 log = structlog.get_logger()
@@ -103,6 +107,10 @@ async def ingest_alert(
         await db.flush()
         await _record_event(db, payload.alert_uuid, AlertStatus.RECEIVED, "backend")
         await db.commit()
+        await publish_event(redis, "alert.created", {
+            "alert_uuid": str(payload.alert_uuid), "severity": payload.detection.severity.value,
+            "lat": payload.location.lat, "lon": payload.location.lon, "channel": "DATA",
+        })
     except Exception as e:  # noqa: BLE001 -- must degrade, never raise past here
         await db.rollback()
         log.error("alerts.persist.failed_falling_back_to_queue", error=str(e))
@@ -122,6 +130,22 @@ async def ingest_alert(
     alert_row.status = AlertStatus.ENRICHED
     await _record_event(db, payload.alert_uuid, AlertStatus.ENRICHED, "backend",
                         detail={"degraded_reasons": enrichment.degraded_reasons})
+
+    # ---- 4. Score: Model B, only if map-matching found a segment ----------
+    # No fabricated score when there is no segment -- matches app/api/risk.py's
+    # honest-404 posture rather than inventing a number for an unmatched point.
+    risk_context: RiskContext | None = None
+    if enrichment.segment_id is not None:
+        seg = (await db.execute(
+            select(RoadSegment).where(RoadSegment.segment_id == enrichment.segment_id)
+        )).scalar_one_or_none()
+        if seg is not None:
+            risk = predict_risk(features_from_segment(seg, payload.occurred_at))
+            alert_row.risk_score = risk.score
+            alert_row.risk_band = risk.band
+            alert_row.model_b_version = risk.model_version
+            risk_context = RiskContext(score=risk.score, band=risk.band, top_factors=risk.top_factors)
+
     await db.commit()
 
     # ---- 6. Route: nearest responders + dispatch gateway --------------------
@@ -169,6 +193,9 @@ async def ingest_alert(
             gateway=ack.gateway, is_simulated=ack.is_simulated,
             ticket_id=ack.ticket_id, eta_note=ack.eta_note,
         )
+        await publish_event(redis, "alert.status_changed", {
+            "alert_uuid": str(payload.alert_uuid), "status": "DISPATCHED", "ticket_id": ack.ticket_id,
+        })
     except (GatewayRejected, GatewayTimeout) as e:
         # PRD §11.2 point 7 / §10.4: the gateway misbehaving degrades the
         # response, it does not fail the ingest. The alert is safely
@@ -182,13 +209,16 @@ async def ingest_alert(
         await _record_event(db, payload.alert_uuid, AlertStatus.FAILED, "gateway-sim",
                             detail={"error": str(e)})
         await db.commit()
+        await publish_event(redis, "alert.status_changed", {
+            "alert_uuid": str(payload.alert_uuid), "status": "FAILED", "reason": str(e),
+        })
 
     return AlertResponse(
         alert_uuid=payload.alert_uuid,
         status="RECEIVED",
         segment_id=enrichment.segment_id,
         landmark=enrichment.landmark,
-        risk_context=None,   # wired once Model B serving (task queue #6) lands
+        risk_context=risk_context,
         dispatch=dispatch_info,
         nearest_units=nearest_units,
     )

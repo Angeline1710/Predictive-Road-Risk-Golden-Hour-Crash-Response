@@ -1,0 +1,94 @@
+"""PRD §10.2. /risk/point and /risk/bbox are implemented and verified here.
+/risk/route, /risk/tiles, /risk/segments/{id}/history, and /risk/top are
+NOT implemented yet -- tracked as a follow-up rather than stubbed out, since
+a stub that returns fake data is worse than an endpoint that doesn't exist.
+"""
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from geoalchemy2 import Geography
+from pydantic import BaseModel
+from sqlalchemy import cast, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_db
+from app.ml.risk_model import RiskResult, features_from_segment, predict
+from app.models.road import RoadSegment
+
+log = structlog.get_logger()
+router = APIRouter(prefix="/risk", tags=["risk"])
+
+MAP_MATCH_RADIUS_M = 1000   # wider than alert-ingest's 300m: a risk query can
+                            # legitimately be "what's the nearest known road"
+
+
+class RiskContextOut(BaseModel):
+    segment_id: int
+    district: str | None
+    road_class: str | None
+    score: float
+    band: str
+    top_factors: list[str]
+    model_version: str
+
+
+async def _nearest_segment(db: AsyncSession, lat: float, lon: float) -> RoadSegment | None:
+    point = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
+    distance_m = func.ST_Distance(cast(RoadSegment.geom, Geography), cast(point, Geography))
+    stmt = (
+        select(RoadSegment).where(distance_m <= MAP_MATCH_RADIUS_M).order_by(distance_m).limit(1)
+    )
+    return (await db.execute(stmt)).scalars().first()
+
+
+@router.get("/point", response_model=RiskContextOut)
+async def risk_point(
+    lat: float = Query(ge=-90, le=90),
+    lon: float = Query(ge=-180, le=180),
+    at: datetime | None = Query(default=None, description="Defaults to now"),
+    db: AsyncSession = Depends(get_db),
+) -> RiskContextOut:
+    seg = await _nearest_segment(db, lat, lon)
+    if seg is None:
+        # Honest 404, not a fabricated score -- PRD §4.7 "No data" band
+        # exists in the UX spec precisely for this case.
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"no road segment within {MAP_MATCH_RADIUS_M}m of ({lat}, {lon}) -- "
+            "the corridor ETL (MVP-PLAN.md task #11) has not populated this area yet",
+        )
+    result: RiskResult = predict(features_from_segment(seg, at or datetime.now(UTC)))
+    return RiskContextOut(
+        segment_id=seg.segment_id, district=seg.district, road_class=seg.road_class,
+        score=result.score, band=result.band, top_factors=result.top_factors,
+        model_version=result.model_version,
+    )
+
+
+@router.get("/bbox", response_model=list[RiskContextOut])
+async def risk_bbox(
+    minlat: float = Query(ge=-90, le=90), minlon: float = Query(ge=-180, le=180),
+    maxlat: float = Query(ge=-90, le=90), maxlon: float = Query(ge=-180, le=180),
+    at: datetime | None = Query(default=None),
+    limit: int = Query(default=200, le=1000),
+    db: AsyncSession = Depends(get_db),
+) -> list[RiskContextOut]:
+    if minlat >= maxlat or minlon >= maxlon:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "min must be less than max on both axes")
+    envelope = func.ST_MakeEnvelope(minlon, minlat, maxlon, maxlat, 4326)
+    stmt = select(RoadSegment).where(func.ST_Intersects(RoadSegment.geom, envelope)).limit(limit)
+    segments = (await db.execute(stmt)).scalars().all()
+
+    at = at or datetime.now(UTC)
+    out = []
+    for seg in segments:
+        result = predict(features_from_segment(seg, at))
+        out.append(RiskContextOut(
+            segment_id=seg.segment_id, district=seg.district, road_class=seg.road_class,
+            score=result.score, band=result.band, top_factors=result.top_factors,
+            model_version=result.model_version,
+        ))
+    return out

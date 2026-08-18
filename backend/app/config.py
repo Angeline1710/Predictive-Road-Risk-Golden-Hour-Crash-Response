@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     openweather_api_key: str | None = None
     tomtom_api_key: str | None = None
 
+    # PRD NFR-S7: inbound SMS is untrusted input and should be HMAC-signed.
+    # No real SMS gateway is wired up in this deployment (MVP-PLAN.md §2②
+    # proposes a companion-phone receiver as the demo path instead), so this
+    # is unset by default -- app/api/sms.py logs loudly on every request when
+    # that's the case rather than silently accepting unauthenticated traffic
+    # without saying so.
+    sms_webhook_secret: str | None = None
+
     log_level: str = "INFO"
 
 
