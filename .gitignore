@@ -14,6 +14,21 @@ ml/reports/*.log
 *.npz
 *.npy
 
+# osmnx's Overpass API response cache -- reproducible via etl/*.py, not committed
+/cache/
+# `etl/output/*` (not `etl/output/`, a directory-level exclusion) -- a
+# negation below can't re-include a file whose PARENT DIRECTORY was excluded,
+# only one whose parent is merely un-listed. Got this wrong the first time
+# (same class of mistake as .env.example earlier), verified with
+# `git check-ignore` before committing rather than assumed fixed.
+etl/output/*
+# ...but the final extracted corridor data (313 KB) IS committed: Overpass
+# connectivity was genuinely flaky during development (repeated timeouts,
+# needed a mirror switch), so this is a real reproducibility safety net, not
+# just a convenience -- load_corridor.py works without live OSM access.
+!etl/output/corridor_segments.parquet
+!etl/output/corridor_responders.parquet
+
 # Node / web
 node_modules/
 dist/

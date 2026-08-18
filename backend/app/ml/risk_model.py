@@ -132,10 +132,17 @@ def features_from_segment(segment, at: datetime) -> RiskFeatures:
     app.models.road.RoadSegment; typed loosely here to avoid a
     models<->ml import cycle.
 
-    District-level real-data fields (district_fatal_share etc, PRD §7.2)
-    fall back to the TN state-wide mean until the corridor ETL populates the
-    real per-district values alongside real segment geometry -- the same
-    honest-degrade posture as app/services/enrichment.py.
+    District-level fields are Chengalpattu's REAL 2021 figures from
+    `tn_road_accident_dataset_original.csv` (via ml/risk_model/ingest.py,
+    values copied here rather than imported live so the backend doesn't
+    depend on the ml/ package or its CSV path at request time): 1,614 total
+    accidents, 0.280 fatal share, 0.326 vulnerable-road-user death share,
+    0.250 heavy-vehicle death share, 1.197 YoY growth (ml/MODELS.md §1.2).
+    Every corridor segment currently carries district="Chengalpattu" (the
+    whole extraction is one district -- MVP-PLAN.md §2③), so a single
+    constant is accurate here, not an approximation; it stops being exactly
+    right only if a future extraction spans multiple districts, at which
+    point this needs a real per-district lookup instead of a constant.
     """
     return RiskFeatures(
         district=segment.district or "Chengalpattu",   # PRD demo corridor, MVP-PLAN.md §2
@@ -144,8 +151,8 @@ def features_from_segment(segment, at: datetime) -> RiskFeatures:
         gradient_pct=segment.gradient_pct or 0.0, lanes=segment.lanes or 2,
         junction_count=segment.junction_count or 0, is_lit=bool(segment.is_lit),
         has_median=False, speed_limit_kmh=segment.speed_limit_kmh or 60,
-        district_fatal_share=0.27, district_vru_share=0.45, district_heavy_share=0.15,
-        district_total_2021=1200.0, district_yoy=1.05, at=at,
+        district_fatal_share=0.280, district_vru_share=0.326, district_heavy_share=0.250,
+        district_total_2021=1614.0, district_yoy=1.197, at=at,
     )
 
 

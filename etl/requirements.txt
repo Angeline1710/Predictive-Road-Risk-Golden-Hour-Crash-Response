@@ -1,0 +1,12 @@
+# Pinned to what was actually used to run extract_corridor.py /
+# extract_responders.py / load_corridor.py. Python 3.12.
+# load_corridor.py additionally imports the backend's own app.models/app.db
+# package directly -- see backend/pyproject.toml for those dependencies.
+
+osmnx==2.1.1
+geopandas==1.1.4
+networkx==3.6.1
+shapely==2.1.2
+h3==4.1.2
+pandas==3.0.3
+pyarrow==25.0.1
