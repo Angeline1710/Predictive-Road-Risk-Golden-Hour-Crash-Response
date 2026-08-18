@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # ~250 km^2, which is what makes OpenWeatherMap's ~1000 calls/day tractable.
     h3_resolution: int = 5
 
+    # No keys configured in this deployment -- weather/traffic enrichment
+    # legitimately degrades every time (app/services/enrichment.py). Real
+    # keys go in .env, never here.
+    openweather_api_key: str | None = None
+    tomtom_api_key: str | None = None
+
     log_level: str = "INFO"
 
 
