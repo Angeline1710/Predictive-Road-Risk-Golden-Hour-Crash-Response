@@ -30,12 +30,12 @@ tap "Register device."
 | `app` | Real: Hilt DI, Compose + Material3 theme transcribed from UX-APPFLOW.md §28/§6, Retrofit client, device registration against the live backend, and a Drive Mode section (permission requests, start/stop, live Stage-A + classification readout) |
 | `core-sensing` | **Real**, 2026-08-18: `ImuRingBuffer` + `StageAGate` (mirrors `ml/crash_detection/build_dataset.py`'s `stage_a_pass()` full/degraded logic exactly, 14 unit tests), `ImuSensorSource` (real SensorManager, TYPE_LINEAR_ACCELERATION + TYPE_GYROSCOPE), `GpsSpeedSource` (FusedLocationProviderClient), `DrivingDetector` (Activity Recognition IN_VEHICLE transitions), `DriveSensingService` (foreground service tying it together, publishing raw IMU/GPS window snapshots for core-detection to consume) |
 | `core-detection` | **Real**, 2026-08-19: `TabularFeatures` ports `saturation_features()`/`gps_features()` to Kotlin (2 unit tests, one pinning a hand-computed 26-value example field by field). `CrashClassifier` loads the bundled `crash_fusion_deployable_v1.tflite` and runs it via its real named signature. `app`'s `DriveViewModel` wires the two together: on the rising edge of Stage-A's degraded arm, extracts features and classifies, off the main thread, guarded against concurrent invocation into the same (not thread-safe) `Interpreter` |
-| `core-transport` | Placeholder only. Real HTTPS→SMS channel strategy with retry/parallel-send-on-CRITICAL: not built (~2.5 person-days). `app`'s Retrofit call is explicitly not this — it's one direct call proving the toolchain, not the real transport layer |
+| `core-transport` | **Real**, 2026-08-19: `Rrx1Codec` ports `encode_rrx1()`/`crc8_atm()` to Kotlin, verified byte-for-byte against two concrete outputs from the real Python implementation (3 unit tests). `AlertApi`/DTOs mirror `AlertCreate` field-for-field -- the exact JSON they produce was POSTed with `curl` straight at the live backend and returned a real `202`. `AlertTransport` implements PRD §6.2's channel strategy (HTTPS 6s deadline, SMS 15s deadline, parallel-not-sequential on CRITICAL); `AlertSendWorker` is a plain `CoroutineWorker` (no Hilt-Work) retrying up to 24h on failure. `app`'s `TransportSection` exercises the whole path with an `is_simulated = true` test payload, the same "one real screen proves the contract" pattern as device registration |
 | `core-data` | Placeholder only. Room offline queue, EncryptedSharedPreferences token/medical storage: not built |
 
-Still missing: the cancel-window screen, transport, onboarding, drive-mode
-UI beyond the raw sensor/classification readout. See MVP-PLAN.md §3.3 for
-what's left and its cost.
+Still missing: the cancel-window screen, onboarding, drive-mode UI beyond
+the raw sensor/classification readout, and always-on driving detection.
+See MVP-PLAN.md §3.3 for what's left and its cost.
 
 ### Sensing scope notes (real limitations, not oversights)
 
@@ -83,6 +83,35 @@ what's left and its cost.
   model asset; it does not prove a real Stage-A trigger on real hardware
   produces a sane `CrashPrediction`.
 
+### Transport scope notes (real limitations, not oversights)
+
+- **The SMS destination number is a placeholder** (`AppConfig.SMS_DESTINATION_PLACEHOLDER`).
+  There's no decided SMS gateway or companion-phone number yet -- same open
+  item as MVP-PLAN.md §2②'s companion-phone receiver, which is the other
+  half of this same unresolved question (what number sends TO, this is
+  what number sends FROM/receives).
+- **`SmsSender` has never actually sent an SMS.** Verification for this
+  module split cleanly into two kinds: `Rrx1Codec`'s bit-packing was
+  checked against ground truth (real Python output) with JVM unit tests,
+  and `AlertApi`'s JSON contract was checked against the real backend with
+  `curl` -- both things a Docker container can verify without a phone.
+  Actually invoking `SmsManager` needs a real radio/SIM, which this
+  environment has neither; that path is compiled and structurally
+  reviewed, not executed.
+- **No Hilt-Work integration.** `AlertSendWorker` builds its own small
+  Retrofit/OkHttp/Json stack from a `baseUrl` string passed via `Data`
+  rather than sharing `app`'s Hilt-provided instance, so WorkManager's
+  default reflection-based factory can construct it with no extra setup.
+  A `HiltWorkerFactory` + `Configuration.Provider` wiring in
+  `RrxApplication` would remove the duplication; not worth the app-wide
+  structural change for one worker in this pass.
+- **The `unresponsive` RRX1 flag has no real source.** `AlertCreateDto`'s
+  HTTPS schema has no field distinguishing "the user was unresponsive
+  during the cancel window" from "the window simply expired" -- only
+  `window.outcome` (EXPIRED/CANCELLED). `AlertTransport` sets `unresponsive
+  = false` unconditionally rather than guess; the cancel-window screen
+  (unbuilt) is what would actually know the difference.
+
 ## Known gaps worth knowing about before extending this
 
 - **No embedded fonts.** `ui/theme/Type.kt` falls back to the platform
@@ -108,3 +137,14 @@ what's left and its cost.
   Compilation alone can't catch that class of bug; it needed a second,
   API-level-aware read of the code. `DriveSensingService.startForegroundCompat()`
   branches on `Build.VERSION.SDK_INT` instead.
+- **Real bugs the transport pass added:** a KDoc comment containing the
+  literal text `*1e5/*10` broke the entire rest of `Rrx1Codec.kt` -- Kotlin
+  (unlike Java/C) supports *nested* block comments, so that `/*` substring
+  opened an unintended inner comment with no matching close, leaving the
+  real closing `*/` pointing at the wrong comment and everything after
+  genuinely unclosed. Same failure family as the XML `--` bug, different
+  language. And a Kotlin compiler limitation, not a mistake exactly:
+  smart-casting a nullable `val` to non-null doesn't work across a Gradle
+  module boundary the way it does within one module -- `TransportSection.kt`
+  needed a local `val` to hold `result.httpsResponse` before the nullable
+  field was usable smart-cast-free.

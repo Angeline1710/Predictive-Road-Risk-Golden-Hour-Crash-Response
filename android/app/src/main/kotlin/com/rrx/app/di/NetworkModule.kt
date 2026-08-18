@@ -17,13 +17,6 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // 10.0.2.2 is the standard Android emulator alias for the host
-    // machine's localhost -- backend/docker-compose.yml publishes the API
-    // on host port 8000. A physical device on the demo Wi-Fi needs the
-    // host's real LAN IP instead, same "companion-phone on the same
-    // network" pattern MVP-PLAN.md §2② already established for SMS.
-    private const val BASE_URL = "http://10.0.2.2:8000/"
-
     @Provides
     @Singleton
     fun provideJson(): Json = Json { ignoreUnknownKeys = true }
@@ -39,7 +32,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(client: OkHttpClient, json: Json): Retrofit =
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(AppConfig.BASE_URL)
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()

@@ -17,12 +17,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rrx.app.ui.drive.DriveSection
+import com.rrx.app.ui.transport.TransportSection
 
 /**
  * The scaffold's real screen: registers this device against the live
- * backend, and hosts Drive Mode (core-sensing's IMU/GPS/Stage-A pipeline).
- * Still out of scope: crash detection (core-detection, unbuilt), the
- * cancel-window screen, transport, and onboarding -- see MVP-PLAN.md §3.3.
+ * backend, hosts Drive Mode (core-sensing's IMU/GPS/Stage-A pipeline,
+ * wired to core-detection's classifier), and a transport test surface
+ * (core-transport's HTTPS/SMS channel strategy against a simulated
+ * payload). Still out of scope: the cancel-window screen and onboarding
+ * -- see MVP-PLAN.md §3.3.
  */
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
@@ -35,10 +38,10 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
         ) {
             Text("Road-Risk & Golden-Hour Response", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Android scaffold -- proves the toolchain, the device-registration " +
-                    "contract, and the IMU/GPS/Stage-A sensing pipeline against real " +
-                    "hardware APIs. Crash detection, transport, and the cancel-window " +
-                    "screen are not implemented yet.",
+                "Android scaffold -- proves the toolchain and the device-registration, " +
+                    "sensing/detection, and transport contracts against the real backend " +
+                    "and real hardware APIs. The cancel-window screen and onboarding are " +
+                    "not implemented yet.",
                 style = MaterialTheme.typography.bodyMedium,
             )
 
@@ -62,6 +65,7 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
             }
 
             DriveSection()
+            TransportSection()
         }
     }
 }
