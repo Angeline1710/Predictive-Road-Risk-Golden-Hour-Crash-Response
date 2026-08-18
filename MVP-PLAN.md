@@ -15,10 +15,11 @@
 | Product definition (PRD, UX/appflow, model card) | **Done**, kept in sync with the built model (PRD §7.1/§6.1.2/§12.3 updated 2026-08-17) |
 | Model A — crash detection | Trained, exported, **deployable artifact verified end-to-end**: `crash_fusion_deployable_v1.tflite` (299.5 KB) takes raw sensor input, computes its own mel spectrogram on-device, and needs no client-side normalisation. Real-world accuracy **still unvalidated** — see `ml/MODELS.md` §0 |
 | Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Not served** — no API wraps it yet |
-| Backend, Android app, dashboard, gateway, infra | **Nothing exists** |
+| Backend (`rrx-api`) | **Scaffold + `POST /alerts` done, verified against real Docker containers.** Schema (14 tables), the primary alert-ingest endpoint, and the simulated dispatch gateway all work end to end — see `backend/README.md` for what's real vs. stubbed. Everything else in PRD §10 (auth, risk serving, dashboard endpoints, weather/traffic, SMS ingest) is not yet built |
+| Android app, dashboard, infra | **Nothing exists** |
 | Version control | **Done.** Pushed to [GitHub](https://github.com/Angeline1710/Predictive-Road-Risk-Golden-Hour-Crash-Response), `main` tracking `origin/main` |
 
-Roughly **25% of the MVP is built** — the ML layer plus the one integration risk (on-device audio processing) that could have quietly become a week of Android debugging is now closed and proven, not just planned. Every remaining piece is conventional engineering — no research risk left, but also no shortcuts: backend, Android, and dashboard are each still at zero lines of code.
+Roughly **32% of the MVP is built** — the ML layer, the on-device audio risk (§4.1), and now a working backend core: real schema, a verified `POST /alerts`, and a dispatch gateway that does more than return `200 OK` (tested nearest-responder selection and all three failure modes independently). Android and the dashboard are still at zero — those are next.
 
 ---
 
@@ -54,23 +55,24 @@ Effort in person-days. Assumes a 5-person team working in parallel.
 
 ### 3.1 Backend — `rrx-api` · **the critical path**
 
-Everything else depends on it. Start here, get `POST /alerts` returning `202` by end of week 1 even if it only writes to a table.
+Everything else depends on it. **Started 2026-08-18** — scaffold, schema, and `POST /alerts` are done and verified against real containers, not mocked.
 
 | Piece | Days | Notes |
 |---|---|---|
-| Scaffold: FastAPI, Docker Compose (api + postgres/postgis + redis), Alembic | 1.5 | |
-| Schema from PRD §9 | 1 | DDL is written; transcribe to SQLAlchemy + migration |
-| `POST /alerts` — validate, dedup on `alert_uuid`, persist, `202` | 1.5 | Idempotency and the never-reject rule (PRD §10.4) |
-| Enrichment: map-match, weather, traffic, cache-first with hard timeouts | 2 | Degrade on timeout, never block |
+| ~~Scaffold: FastAPI, Docker Compose (api + postgres/postgis + redis), Alembic~~ | ~~1.5~~ **0** | **Done.** `backend/`, image builds clean, migration runs on container startup |
+| ~~Schema from PRD §9~~ | ~~1~~ **0** | **Done.** All 14 tables, exact index/enum names, migrated and verified (upgrade + downgrade both tested) against live PostGIS 3.4 |
+| ~~`POST /alerts` — validate, dedup on `alert_uuid`, persist, `202`~~ | ~~1.5~~ **0** | **Done and verified**, not just written: idempotency confirmed (retry produces zero duplicate rows, same ticket returned), map-matching confirmed against a seeded segment, graceful degradation confirmed against an empty `road_segments` table (PRD §10.4) |
+| ~~`DispatchGateway` protocol + `SimulatedPmRahatGateway`~~ | ~~1.5~~ **0** | **Done and verified.** Real PostGIS nearest-responder selection (tested: correctly picked a 25.6 km unit over one 1,900 km away), ticket state machine, and all three injectable failure modes (`slow`/`timeout`/`reject`) individually tested |
+| ~~Nearest-responder query~~ | ~~0.5~~ **0** | **Done** — folded into the gateway work above; `app/services/responders.py` uses a real `geography`-cast `ST_Distance`, not the faster-but-wrong planar version |
+| Enrichment: weather, traffic, cache-first with hard timeouts | 1.5 | **Map-matching is done** (real PostGIS query, `app/services/segments.py`); weather/traffic external API integration is not. Was 2 days for map-match+weather+traffic together — map-match is off the list |
 | `POST /ingest/sms` — parse `RRX1`, CRC check, HMAC auth | 1 | Treat inbound SMS as untrusted (NFR-S7) |
-| Model B serving: load booster, `/risk/point`, `/risk/route`, `/risk/bbox` | 1.5 | Artifact exists; needs the feature-vector builder |
+| Model B serving: load booster, `/risk/point`, `/risk/route`, `/risk/bbox` | 1.5 | Artifact exists; needs the feature-vector builder. `risk_baseline` lookup path already exists (`segments.current_risk`), currently returns `None` until the nightly precompute job populates it |
 | Vector tiles `/risk/tiles/{z}/{x}/{y}.mvt` via `ST_AsMVT` | 1 | |
-| WebSocket `/ws/events` + Redis pub/sub | 1 | |
-| `DispatchGateway` protocol + `SimulatedPmRahatGateway` | 1.5 | Full state machine + failure modes, not a stub (PRD §11.2) |
-| Nearest-responder query | 0.5 | One PostGIS `ST_DWithin` |
-| `/sim/*` demo endpoints | 1 | Env-flag gated |
-| Auth: device JWT + dashboard RBAC | 1.5 | |
-| **Total** | **~15** | |
+| WebSocket `/ws/events` + Redis pub/sub | 1 | Redis is running and configured but not yet used by any endpoint |
+| `/devices/register`, `/alerts/{uuid}/trace`, `/alerts/{uuid}/cancel`, `GET /alerts/{uuid}` | 1 | PRD §10.1 lists these; none exist yet. Verification needed a device pre-seeded by hand — this is why |
+| `/sim/*` demo endpoints | 1 | Env-flag gated. `GatewayModeState` (the thing `/sim/gateway/mode` would flip) already exists and is wired into the gateway — the endpoint to mutate it over HTTP is what's missing |
+| Auth: device JWT + dashboard RBAC | 1.5 | Every route is currently open |
+| **Total** | **~10** | down from ~15 |
 
 ### 3.2 ETL — corridor data
 
@@ -131,7 +133,7 @@ Fully parallel. Only needs the API contract, which the OpenAPI spec gives on day
 | Deck rebuilt against the working system — architecture slide, model params, artifact size all changed since the original deck (§4.3) | 1 |
 | **Total** | **~7.5** |
 
-**Grand total ≈ 63 person-days** (backend 15 + ETL 4 + Android 21 + dashboard 15.5 + integration 7.5). At 5 people over 6 weeks (~150 person-days available) that is comfortable — *if* the Android track starts on day 1.
+**Grand total ≈ 58 person-days** (backend 10 + ETL 4 + Android 21 + dashboard 15.5 + integration 7.5), down from ~63. At 5 people over 6 weeks (~150 person-days available) that is comfortable — *if* the Android track starts on day 1.
 
 ---
 
