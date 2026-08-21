@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.rrx.app.ui.drivemode.DriveModeActivity
 import com.rrx.coredetection.CrashPrediction
 import com.rrx.coresensing.DriveSessionState
 
@@ -34,10 +35,13 @@ private fun requiredPermissions(): Array<String> = buildList {
 }.toTypedArray()
 
 /**
- * Drive Mode: start/stop [com.rrx.coresensing.DriveSensingService] and show
- * its live Stage-A gate state. This is core-sensing's only UI surface in
- * this scaffold -- PRD.md §13 "Drive Mode" (Segment Ribbon, risk warnings)
- * is a separate, unbuilt screen (MVP-PLAN.md §3.3).
+ * Start/stop [com.rrx.coresensing.DriveSensingService] and show its live
+ * Stage-A gate state -- a debug readout, not UX-APPFLOW.md §13's actual
+ * Drive Mode screen. Once sensing is active, "Open Drive Mode" launches
+ * the real thing ([com.rrx.app.ui.drivemode.DriveModeScreen]: live risk
+ * map, Segment Ribbon). Risk Warning (§14: voice/haptic/overlay on
+ * entering a High/Severe segment) isn't built yet -- see
+ * `android/README.md`.
  */
 @Composable
 fun DriveSection(viewModel: DriveViewModel = hiltViewModel()) {
@@ -78,6 +82,9 @@ fun DriveSection(viewModel: DriveViewModel = hiltViewModel()) {
                 else -> {
                     DriveStateReadout(state)
                     prediction?.let { PredictionReadout(it) }
+                    Button(onClick = { context.startActivity(DriveModeActivity.intentFor(context)) }) {
+                        Text("Open Drive Mode (live risk map)")
+                    }
                     Button(onClick = viewModel::stopSensing) { Text("Stop sensing") }
                 }
             }

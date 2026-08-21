@@ -27,7 +27,7 @@ tap "Register device."
 
 | Module | State |
 |---|---|
-| `app` | Real: Hilt DI, Compose + Material3 theme transcribed from UX-APPFLOW.md §28/§6, Retrofit client, device registration against the live backend, and a Drive Mode section (permission requests, start/stop, live Stage-A + classification readout) |
+| `app` | Real: Hilt DI, Compose + Material3 theme transcribed from UX-APPFLOW.md §28/§6, Retrofit client, device registration against the live backend, onboarding, the crash countdown flow, and Drive Mode (both the debug sensing readout and, as of 2026-08-21, the real §13 screen -- live risk map, Segment Ribbon) |
 | `core-sensing` | **Real**, 2026-08-18: `ImuRingBuffer` + `StageAGate` (mirrors `ml/crash_detection/build_dataset.py`'s `stage_a_pass()` full/degraded logic exactly, 14 unit tests), `ImuSensorSource` (real SensorManager, TYPE_LINEAR_ACCELERATION + TYPE_GYROSCOPE), `GpsSpeedSource` (FusedLocationProviderClient), `DrivingDetector` (Activity Recognition IN_VEHICLE transitions), `DriveSensingService` (foreground service tying it together, publishing raw IMU/GPS window snapshots for core-detection to consume) |
 | `core-detection` | **Real**, 2026-08-19: `TabularFeatures` ports `saturation_features()`/`gps_features()` to Kotlin (2 unit tests, one pinning a hand-computed 26-value example field by field). `CrashClassifier` loads the bundled `crash_fusion_deployable_v1.tflite` and runs it via its real named signature. `app`'s `DriveViewModel` wires the two together: on the rising edge of Stage-A's degraded arm, extracts features and classifies, off the main thread, guarded against concurrent invocation into the same (not thread-safe) `Interpreter` |
 | `core-transport` | **Real**, 2026-08-19: `Rrx1Codec` ports `encode_rrx1()`/`crc8_atm()` to Kotlin, verified byte-for-byte against two concrete outputs from the real Python implementation (3 unit tests). `AlertApi`/DTOs mirror `AlertCreate` field-for-field -- the exact JSON they produce was POSTed with `curl` straight at the live backend and returned a real `202`. `AlertTransport` implements PRD §6.2's channel strategy (HTTPS 6s deadline, SMS 15s deadline, parallel-not-sequential on CRITICAL); `AlertSendWorker` is a plain `CoroutineWorker` (no Hilt-Work) retrying up to 24h on failure. `app`'s `TransportSection` exercises the whole path with an `is_simulated = true` test payload, the same "one real screen proves the contract" pattern as device registration |
@@ -78,9 +78,38 @@ not just the API 33+ OS feature) and previews the crash line via a real
 `TextToSpeech` instance, checking `isLanguageAvailable()` for the
 `VOICE PACK NEEDED` chip rather than guessing.
 
-Still missing: onboarding, drive-mode UI beyond the raw sensor/
-classification readout, always-on driving detection, and `core-data`.
-See MVP-PLAN.md §3.3 for what's left and its cost.
+`app`'s Drive Mode screen (§13), **real, 2026-08-21**: `DriveModeScreen`
+(manually opened from `DriveSection`'s "Open Drive Mode" button while
+sensing is active -- see its own doc comment for why this isn't
+auto-launched on `IN_VEHICLE`) hosts `DriveModeMap`, a real `osmdroid`
+map with road-segment polylines coloured and stroke-weighted by risk
+band, pulled from the same `GET /risk/bbox` contract the dashboard's
+Live Operations map already calls -- a second client, not a second
+implementation. A `Marker` at the driver's live GPS position, rotated by
+`GpsFix.headingDeg` (straight from `Location.getBearing()`), doubles as
+§13's heading arrow; the map centres on it once, then leaves it to the
+user to pan (a `mutableStateOf` "have I centred yet" flag, not a bare
+`var`, since a `var` reassigned inside `AndroidView`'s `update` closure
+doesn't write back into `remember`'s slot -- a real bug caught before it
+ever ran, see the scope notes below). A Milestone Marker heuristic places
+a pin on notable (High/Severe) segments whose `top_factors` mention
+"black spot," since `RiskContextOut` has no discrete blackspot flag to
+key off directly. `DriveModeViewModel` refetches segment data on
+significant movement or a 15s staleness timeout, whichever comes first,
+and never clears stale data on a failed refetch (shows it labelled
+`◐ CACHED` instead, per §13's "never mistake stale risk for live risk").
+The Segment Ribbon renders the nearest segments as coloured cells with
+NFR-A3's letter tokens (L/M/H/S), plus a plain-language "next notable
+segment" line built from the same `top_factors` SHAP output the backend
+already returns. `RiskBand.fromApi()` mirrors `web/src/lib/bands.ts`'s
+`bandKeyFromApi()` -- same defensive parsing of the capitalized band
+strings, different language.
+
+Still missing: Risk Warning (§14 -- voice/haptic/overlay on entering a
+High/Severe segment), the ambient/screen-off persistent-notification
+upgrade (still the plain-text one from the sensing pass), always-on
+driving detection, and a post-onboarding Settings screen. See
+MVP-PLAN.md §3.3 for what's left and its cost.
 
 ### Sensing scope notes (real limitations, not oversights)
 
@@ -248,6 +277,45 @@ See MVP-PLAN.md §3.3 for what's left and its cost.
   `RrxDatabase`'s `emergency_contacts` table is not -- SQLCipher would
   close that gap but wasn't pulled in for one table in this pass. Contact
   names/numbers sit in a plain SQLite file on disk.
+
+### Drive Mode scope notes (real limitations, not oversights)
+
+- **Never run on a device or emulator**, same caveat as everything else --
+  `assembleDebug` proves `osmdroid` and the DTO/Retrofit contract compile
+  and package; it doesn't prove tiles actually render, GPS-driven
+  recentring feels right, or `/risk/bbox` returns useful data for
+  wherever a real device happens to be (the ETL pipeline has only
+  populated the NH-45/Chengalpattu corridor -- MVP-PLAN.md §2③).
+- **"Nearby" is nearest-vertex distance, not distance-ahead-along-the-route.**
+  `NearbySegment`/`distanceToNearestVertexM()`'s doc comment covers this:
+  a true "2.1 km ahead" (UX-APPFLOW.md §13's own mock) needs either
+  `/risk/route` (PRD.md §10.2 lists it as **not implemented** server-side)
+  or client-side map-matching, neither of which this pass builds. The
+  Segment Ribbon and next-notable line both sort by straight-line
+  distance to the closest point of each segment's geometry instead --
+  usually a reasonable proxy for "nearby," not reliably "ahead" on a
+  winding road or at an intersection.
+- **The map is `osmdroid`'s default Mapnik tile style**, not UX-APPFLOW.md
+  §13's low-detail "no POIs, no business labels" ideal -- a custom tile
+  style/vector renderer is out of scope, the same class of gap MVP-PLAN.md
+  §3.4 already notes for the dashboard's CARTO-raster-instead-of-bespoke-
+  vector-tiles basemap.
+- **NFR-A3's triple encoding (hue + hatch pattern + letter token) is only
+  two-thirds built.** `RiskBand` carries the letter token and hue plus a
+  band-varying stroke width (a partial substitute for the missing hatch
+  pattern); an actual hatch fill on an `osmdroid` `Polyline` or a ribbon
+  cell needs a `Shader`/`PathEffect` this pass didn't build. Colour
+  alone still isn't the only signal (the letter token is real), but the
+  full accessibility spec isn't met yet.
+- **§14's Risk Warning (voice + haptic + Severe overlay on entering a
+  High/Severe segment) isn't built.** This screen only shows the ribbon
+  passively; nothing watches for a band transition and fires the
+  spec'd audio/haptic/overlay escalation yet.
+- **The ambient/screen-off notification is unchanged from the sensing
+  pass** -- still `DriveSensingService`'s plain "Monitoring for crashes"
+  text, not §13's `● Active · 68 km/h · NH-45 · Next: Severe in 2.1 km`
+  live-updating, band-accented one.
+
 ## Known gaps worth knowing about before extending this
 
 - **No embedded fonts.** `ui/theme/Type.kt` falls back to the platform
@@ -337,3 +405,32 @@ See MVP-PLAN.md §3.3 for what's left and its cost.
   the bug ever ran against real Gradle output; the kind of mistake unit
   tests wouldn't have caught either, since nothing here was type-incorrect
   or even behaviorally wrong for a *first* cold start, only a second one.
+- **Real bugs the Drive Mode pass added, all caught by the Docker
+  compile:** the cross-module smart-cast limitation recurred again --
+  `sensing?.gpsFix` read twice (once in a null check, once in the branch
+  body) failed to smart-cast because `GpsFix` is declared in
+  `core-sensing`, not `app`; fixed the same way as `TransportSection.kt`
+  and the crash-screen pass before it, with a local `val`. Second, a
+  self-inflicted cleanup half-finished itself: removing
+  `rememberUpdatedState`'s import without also removing its two call
+  sites in `RiskMap` left `currentFix`/`currentNearby` referencing an
+  unresolved symbol, which then cascaded into a wall of unrelated-looking
+  errors (`component1()`/`component2()` "ambiguous," `.size` and `.band`
+  "unresolved") purely because the compiler had already lost track of
+  their real types -- worth remembering that a pile of strange, unrelated
+  errors in one file often traces back to one earlier, mundane mistake,
+  not many independent ones. Third, `SegmentRibbon.kt`'s ribbon cells
+  used `Modifier.weight(1f)` inside a `Row { list.forEach { Box(...) } }`
+  -- an extremely common Compose pattern -- but this Compose Foundation
+  version resolved it to an internal `RowColumnParentData` property
+  instead of `RowScope.weight()`, failing to compile; sidestepped with
+  `BoxWithConstraints` computing each cell's width explicitly rather than
+  relying on `weight()`'s scope resolution at all. Fourth, not a compiler
+  error but a real find on review: `DriveModeMap.kt` -- a complete,
+  working map composable with a Milestone Marker heuristic, an
+  osmdroid-`Marker`-based heading indicator, and a documented one-time-
+  centring fix -- already existed in the working tree, unreferenced,
+  while `DriveModeScreen.kt` had grown its own smaller, private
+  duplicate (a plain Compose `Canvas` heading arrow, no Milestone
+  Markers). Consolidated onto the more complete file rather than ship
+  two competing implementations, one of them dead code.

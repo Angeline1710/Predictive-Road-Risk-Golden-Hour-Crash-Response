@@ -73,6 +73,14 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.Rrx" />
 
+        <!-- UX-APPFLOW.md §13. Launched manually from DriveSection, not
+             automatically on IN_VEHICLE; see DriveModeActivity's own doc
+             comment for why the automatic entry isn't wired. -->
+        <activity
+            android:name=".ui.drivemode.DriveModeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Rrx" />
+
     </application>
 
 </manifest>

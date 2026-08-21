@@ -82,6 +82,16 @@ dependencies {
     // per-app-language feature.
     implementation("androidx.appcompat:appcompat:1.7.0")
 
+    // Drive Mode's live risk map (UX-APPFLOW.md §13). osmdroid, not Google
+    // Maps: this project has no Google Maps API key configured anywhere
+    // (backend/dashboard both use plain OSM/Leaflet -- web/src/components/LiveMap.tsx
+    // is a CARTO/OSM raster basemap, not Google's), and osmdroid needs
+    // none -- it tiles directly from OpenStreetMap, the same data source
+    // the ETL pipeline (MVP-PLAN.md §3.2) already builds road segments
+    // from, so this keeps the whole project on one mapping data source
+    // rather than introducing a second, keyed one for Android alone.
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
+
     // PRD.md §12.1: Retrofit 2 + OkHttp 4 + kotlinx.serialization.
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
