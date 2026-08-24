@@ -101,6 +101,7 @@ async def ingest_alert(
         model_a_version=payload.detection.model_version,
         is_simulated=payload.is_simulated,
         has_trace=False,
+        occupant_hint=payload.occupant_hint,
     )
     try:
         db.add(alert_row)

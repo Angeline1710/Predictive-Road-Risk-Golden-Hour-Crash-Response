@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Date** | 2026-08-21 |
+| **Date** | 2026-08-24 |
 | **Companions** | `PRD.md` · `UX-APPFLOW.md` · `ml/MODELS.md` |
 | **MVP definition** | **Demo-complete for SIH 2026** — the seven-step jury walkthrough in PRD §16.2 runs end to end on real hardware. *Not* a pilot, not Play Store ready. |
 
@@ -16,11 +16,11 @@
 | Model A — crash detection | Trained, exported, **deployable artifact verified end-to-end**: `crash_fusion_deployable_v1.tflite` (299.5 KB) takes raw sensor input, computes its own mel spectrogram on-device, and needs no client-side normalisation. Real-world accuracy **still unvalidated** — see `ml/MODELS.md` §0 |
 | Model B — road risk | Trained, `risk_model_v1.txt` + SHAP. **Served** — `GET /risk/point`, `GET /risk/bbox` (with segment geometry), wired into alert ingest for `risk_context` |
 | Backend (`rrx-api`) | **Functionally complete for MVP scope**, verified against real Docker containers throughout. `POST/GET /alerts`, `GET /alerts` (list), `POST /ingest/sms` (RRX1 parse + CRC), `POST/GET /devices` (register, heartbeat, count), risk serving, `WS /ws/events`, `/sim/*` demo endpoints, the simulated dispatch gateway. **Not built:** vector tiles (`/risk/tiles`), `/risk/route`, dashboard-facing RBAC (device JWT exists; no operator/analyst login) — see `backend/README.md` |
-| Dashboard (`rrx-ops`) | **Live Operations view built and verified against the real backend**: map with real risk-banded segments, live incident rail (WS-pushed, cold-start via `GET /alerts`), all seven signature components (UX §7), System Honesty Bar wired to real (if sparse) feed status. Incident Detail, Risk Map, Analytics, Simulator console views not yet built — nav rail shows them as disabled, not broken links |
+| Dashboard (`rrx-ops`) | **Live Operations and Incident Detail (UX §22) both built and verified against the real backend**: map with real risk-banded segments, live incident rail (WS-pushed, cold-start via `GET /alerts`), all seven signature components (UX §7), System Honesty Bar wired to real (if sparse) feed status. Incident Detail (2026-08-24) is reached from a rail card's "Details →" link and required extending `GET /alerts/{uuid}` server-side -- it returned only 4 fields before, now returns motion/conditions/dispatch/the real event timeline, plus a new migration (0002) to actually persist `occupant_hint`, which every `POST /alerts` payload had always carried but nothing ever saved. Export (GeoJSON + Print/PDF) is real. Risk Map, Analytics, Simulator console views not yet built — nav rail shows them as disabled, not broken links |
 | Android app (`rrx-app`) | **Toolchain assessed; sensing, crash classification, transport, the cancel-window screen (§15-17), onboarding (§11), and Drive Mode's map + Segment Ribbon (§13) all built and verified** (no local JDK/SDK on this machine — verified via a throwaway Docker image instead, including 19 passing unit tests and repeated `compileDebugKotlin`+`testDebugUnitTest`+`assembleDebug` passes). The recurring theme across every pass: a real toolchain catches real bugs review alone doesn't -- an XML `--`-in-comment failure recurred *four times* across manifest and string-resource files, a missing `androidx.compose.runtime.getValue` import, a deprecated `ClickableText` API, a dead `.let`-discarded expression, a `Modifier.weight()` resolution failure inside a common Compose pattern, and two logic bugs (a returning user re-onboarding every cold start; a cross-module smart-cast recurring a third time) all caught before or by the Docker build. Five-module layout per PRD §12.6, all real now: `core-sensing` (IMU/GPS/Stage-A), `core-detection` (TFLite classifier, verified against the real bundled artifact), `core-transport` (HTTPS/SMS channel strategy, wire format confirmed with `curl` against the live backend), `core-data` (Room emergency contacts + EncryptedSharedPreferences consent/medical/language storage), and `app` tying it together -- device registration, a full-screen crash countdown a real on-device `CrashPrediction.pCrash` crossing the model's own decision threshold (0.297) launches via a full-screen-intent notification, a nine-step onboarding flow gating all of it behind real single-permission-per-screen consent, and a Drive Mode screen rendering a live `osmdroid` risk map from the same `/risk/bbox` contract the dashboard uses. See `android/README.md` for the full scope-decision writeup |
 | Version control | **Done.** Pushed to [GitHub](https://github.com/Angeline1710/Predictive-Road-Risk-Golden-Hour-Crash-Response), `main` tracking `origin/main` |
 
-Roughly **77% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, all verified against real Docker containers), a working Live Operations dashboard wired end-to-end to that backend (including a real-time WS path verified live), and an Android app whose sensing, on-device classification, transport, cancel-window screen, onboarding flow, and Drive Mode map all work end to end and are each verified against something real -- the trained model artifact, the live backend, or a real Docker compile+test+assemble pass. What's left on Android is §14's Risk Warning, the ambient notification, and a Settings screen (~1.5 person-days); the dashboard (~7 days) and integration/hardening (~7.5 days) are now the largest remaining tracks.
+Roughly **80% of the MVP is built** — the ML layer, a functionally complete backend (schema, ingest, risk serving, SMS, WebSocket, sim endpoints, and now a fuller alert-detail endpoint, all verified against real Docker containers), a Live Operations + Incident Detail dashboard wired end-to-end to that backend (including a real-time WS path and a real curl'd-alert-to-rendered-detail-page path, both verified live), and an Android app whose sensing, on-device classification, transport, cancel-window screen, onboarding flow, and Drive Mode map all work end to end and are each verified against something real. What's left on Android is §14's Risk Warning, the ambient notification, and a Settings screen (~1.5 person-days); the dashboard's Risk Map/Analytics/Simulator console (~5 days) and integration/hardening (~7.5 days) are now the largest remaining tracks.
 
 ---
 
@@ -146,18 +146,18 @@ vs. placeholder per module.
 
 ### 3.4 Dashboard — `rrx-ops`
 
-**Started and Live Operations shipped 2026-08-18** — React 18 + TS + Vite + Tailwind + react-leaflet + TanStack Query + Zustand per PRD §12.4, verified against the real running backend (not a mock API), including a live WebSocket update observed end-to-end.
+**Started and Live Operations shipped 2026-08-18, Incident Detail shipped 2026-08-24** — React 18 + TS + Vite + Tailwind + react-leaflet + TanStack Query + Zustand per PRD §12.4, verified against the real running backend (not a mock API), including a live WebSocket update and a real curl'd-alert opened end-to-end from a rail card through to a rendered three-column detail view.
 
 | Piece | Days | Notes |
 |---|---|---|
 | ~~Scaffold: Vite, TS, Tailwind, design tokens, theme switching~~ | ~~1.5~~ **0** | **Done.** `web/src/styles/tokens.css` is a verbatim transcription of UX §28; light/dark via `[data-theme]`, Live Operations defaults dark per §20 |
 | ~~Signature components: Milestone Marker, Segment Ribbon, Golden Hour Dial, Channel Badge, Simulation Seal, Trace Sparkline, Honesty Bar~~ | ~~4~~ **0** | **Done**, all seven, matching UX §7's dimensions/colour/pattern specs exactly (triple-encoded risk bands per NFR-A3), reachable at `/gallery` for design QA |
 | ~~Live Operations: map + risk overlay + incident rail + WS~~ | ~~3~~ **0** | **Done.** Real risk-banded segment polylines from `/risk/bbox` (not mocked geometry), Milestone Marker incidents with zoom-tiered rendering and unacknowledged-pulse, incident rail sorted unacknowledged-first-then-golden-hour-ascending per §21.2, live WS updates, a functional (if MVP-scoped) 24h time scrubber that re-queries Model B for the scrubbed hour. Basemap is a CARTO dark no-labels raster as an honest approximation of §21.1's bespoke vector tile style, which this project has no tile-serving pipeline for |
-| Incident detail (UX §22) | 2 | Not built. Rail cards show a summary; no dedicated detail route yet |
+| ~~Incident detail (UX §22)~~ | ~~2~~ **0** | **Done and verified live, 2026-08-24** — a real `curl`'d alert opened from a rail card's new "Details →" affordance, three columns, real data throughout. `GET /alerts/{uuid}` went from returning 4 fields to the full row (backend/app/api/alerts.py, migration 0002 added `alerts.occupant_hint`, which was accepted in every `POST /alerts` payload since day one but silently dropped -- never persisted -- until now). Reuses five of the seven signature components (Golden Hour Dial at 160px, Channel Badge, Simulation Seal, plus Segment Ribbon/Milestone Marker already live on the map). Two honest gaps carried through rather than faked: Sensor Evidence has no real `{t,g}` samples to show (no `GET .../trace` endpoint exists anywhere -- PRD only ever planned a POST upload route, and that isn't built either), and Victim Details only has real Occupants -- blood group/conditions/language have no source anywhere in the system, matching `android/README.md`'s own onboarding-never-syncs-to-backend note. Export is real: GeoJSON is a client-built `Feature` from the same response the page renders, and Print/PDF is the browser's own print pipeline against the live DOM via new `@media print` rules in `index.css`, so the Simulation Seal renders in the PDF at full fidelity per spec, with no separate template to drift out of sync |
 | Risk map + condition simulator + blackspot comparison | 2.5 | Not built. Layer control exists in Live Operations with Weather/Traffic/Blackspots shown-but-disabled (no data source for any of the three) rather than hidden or faked |
-| Analytics + export | 1.5 | Not built |
+| Analytics + export | 1.5 | Not built. (Incident Detail's own Export -- GeoJSON + Print/PDF -- is now real, but that's per-incident export, not this line item's aggregate analytics export) |
 | Simulator console | 1 | Not built as a UI — `/sim/*` endpoints work and were used directly via `curl` for all dashboard verification |
-| **Total** | **~7** | down from ~15.5 |
+| **Total** | **~5** | down from ~15.5 — Incident Detail (2 days) is done |
 
 ### 3.5 Integration, hardening, demo
 
@@ -171,7 +171,7 @@ vs. placeholder per module.
 | Deck rebuilt against the working system — architecture slide, model params, artifact size all changed since the original deck (§4.3) | 1 |
 | **Total** | **~7.5** |
 
-**Grand total ≈ 22.5 person-days** (backend 2.5 + ETL 4 + Android 1.5 + dashboard 7 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **The critical path has moved off Android** for the first time this project: sensing, classification, transport, the cancel-window screen (§15-17), onboarding (§11), and now Drive Mode's map + Segment Ribbon (§13) all work end-to-end, each verified against something real. What's left on Android (§14's Risk Warning, the ambient notification, a Settings screen) is ~1.5 days; the dashboard (7 days: Incident Detail, Risk Map, Analytics, Simulator console) and integration/hardening (7.5 days) are now the largest remaining tracks.
+**Grand total ≈ 20.5 person-days** (backend 2.5 + ETL 4 + Android 1.5 + dashboard 5 + integration 7.5), down from ~58. At 5 people over 6 weeks (~150 person-days available) that is comfortable. **The critical path has moved off Android** for the first time this project: sensing, classification, transport, the cancel-window screen (§15-17), onboarding (§11), and Drive Mode's map + Segment Ribbon (§13) all work end-to-end, each verified against something real -- and the dashboard has now shipped Incident Detail (§22) the same way, extending the backend's `GET /alerts/{uuid}` for real rather than building a frontend against fabricated data. What's left on Android (§14's Risk Warning, the ambient notification, a Settings screen) is ~1.5 days; the dashboard's Risk Map, Analytics, and Simulator console (5 days) and integration/hardening (7.5 days) are now the largest remaining tracks.
 
 ---
 
@@ -241,12 +241,15 @@ Week 2  [done] enrichment + gateway + WS + risk endpoints + SMS ingest + sim
                5-language string resources + real locale switching)
         [done] android: drive mode map + Segment Ribbon (§13 -- live
                osmdroid map from GET /risk/bbox, real letter-token bands)
+        [done] dashboard: incident detail (§22 -- extended GET
+               /alerts/{uuid} server-side, migration 0002 for
+               occupant_hint, real GeoJSON/PDF export)
 
 Week 3  android: risk warning (§14) + ambient notification upgrade
         android: post-onboarding Settings screen
-        dashboard: incident detail (remaining ~2 days of §3.4)
+        dashboard: risk map + condition simulator + blackspot comparison
 
-Week 4  dashboard: risk map + comparison, analytics, simulator console
+Week 4  dashboard: analytics + export, simulator console
 
 Week 5  integration, latency instrumentation, battery profiling
         android: offline alert-retry queue (core-data's remaining gap)
@@ -254,7 +257,7 @@ Week 5  integration, latency instrumentation, battery profiling
 Week 6  harden, load test, E2E script, rehearse, rebuild deck
 ```
 
-**Critical path has moved to the dashboard and integration tracks.** Android's remaining ~1.5 days (Risk Warning, ambient notification, Settings screen) are small enough not to gate anything; backend, Android's core pipeline, and the Live Operations dashboard are all verified against real infrastructure and each other. The remaining dashboard views (§3.4) and integration/hardening (§3.5) are now what determines whether the full PRD §16.2 walkthrough — not just Live Operations — is ready in time.
+**Critical path has moved to the dashboard's remaining views and integration.** Android's remaining ~1.5 days (Risk Warning, ambient notification, Settings screen) are small enough not to gate anything; backend, Android's core pipeline, and the dashboard's Live Operations + Incident Detail views are all verified against real infrastructure and each other. Risk Map/Analytics/Simulator console (§3.4's remaining ~5 days) and integration/hardening (§3.5's ~7.5 days) are now what determines whether the full PRD §16.2 walkthrough — not just Live Operations — is ready in time.
 
 ---
 

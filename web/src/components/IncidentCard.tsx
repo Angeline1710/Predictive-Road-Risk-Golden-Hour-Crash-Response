@@ -35,10 +35,17 @@ export interface IncidentCardProps {
   alert: AlertSummary;
   selected?: boolean;
   onSelect?: () => void;
+  /** UX-APPFLOW.md §22: "Opened from a card." A separate affordance from
+   * `onSelect` (which highlights the map marker) rather than making the
+   * whole card navigate -- a card click here still means "show me this on
+   * the map," the same behaviour already verified in Live Operations;
+   * opening the full detail view is a deliberate second action, not an
+   * overload of the first. */
+  onOpenDetail?: () => void;
 }
 
 /** One incident in the Live Operations rail (UX-APPFLOW.md §21.2). */
-export function IncidentCard({ alert, selected = false, onSelect }: IncidentCardProps) {
+export function IncidentCard({ alert, selected = false, onSelect, onOpenDetail }: IncidentCardProps) {
   const severity = SEVERITY_BANDS[severityKeyFromApi(alert.severity)];
   const phase = dispatchPhase(alert.status);
   const elapsedSeconds = (Date.now() - new Date(alert.occurred_at).getTime()) / 1000;
@@ -89,9 +96,32 @@ export function IncidentCard({ alert, selected = false, onSelect }: IncidentCard
           {alert.lat.toFixed(5)} {alert.lon.toFixed(5)}
         </div>
 
-        <div style={{ marginTop: 6, position: "relative", overflow: "hidden", borderRadius: "var(--radius-sm)" }}>
-          {phase === "awaiting" && <HeadlightSweep />}
-          <StatusStrip phase={phase} ticketId={alert.ticket_id} />
+        <div style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ position: "relative", overflow: "hidden", borderRadius: "var(--radius-sm)", flex: 1, minWidth: 0 }}>
+            {phase === "awaiting" && <HeadlightSweep />}
+            <StatusStrip phase={phase} ticketId={alert.ticket_id} />
+          </div>
+          {onOpenDetail && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetail();
+              }}
+              style={{
+                flexShrink: 0,
+                background: "transparent",
+                border: "none",
+                color: "var(--sodium-500)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: "2px 0",
+              }}
+            >
+              Details →
+            </button>
+          )}
         </div>
       </div>
     </div>

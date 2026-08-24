@@ -30,15 +30,63 @@ export interface NearestUnit {
   distance_km: number;
 }
 
-// app/schemas/alert.py's AlertResponse
+// app/schemas/alert.py's MotionOut
+export interface Motion {
+  speed_kmh: number | null;
+  heading_deg: number | null;
+  peak_g: number | null;
+  delta_v_kmh: number | null;
+  impact_direction: string | null;
+  rollover: boolean;
+  still_moving: boolean | null;
+}
+
+// app/schemas/alert.py's ConditionsOut. weather/visibility_m/traffic_density
+// are genuinely null in this deployment -- no weather/traffic API key is
+// configured server-side (backend/app/services/enrichment.py degrades
+// honestly rather than fake a reading). light is always real.
+export interface Conditions {
+  weather: string | null;
+  visibility_m: number | null;
+  light: "Day" | "Night";
+  traffic_density: string | null;
+  conditions_available: boolean;
+}
+
+// app/schemas/alert.py's TimelineEventOut -- one row of the real,
+// append-only alert_events audit trail.
+export interface TimelineEvent {
+  status: string;
+  at: string;
+  actor: string | null;
+}
+
+// app/schemas/alert.py's AlertResponse. Everything past alert_uuid/status is
+// optional because the same schema also backs POST /alerts's 202 body,
+// which PRD §10.4 requires to degrade gracefully rather than error.
 export interface AlertResponse {
   alert_uuid: string;
   status: string;
+  severity: Severity | null;
+  channel: Channel | null;
+  occurred_at: string | null;
+  received_at: string | null;
+  is_simulated: boolean | null;
+  lat: number | null;
+  lon: number | null;
+  gps_accuracy_m: number | null;
+  has_trace: boolean;
   segment_id: number | null;
   landmark: string | null;
   risk_context: RiskContext | null;
   dispatch: DispatchInfo | null;
   nearest_units: NearestUnit[];
+  motion: Motion | null;
+  conditions: Conditions | null;
+  // Occupants only -- blood group/medical conditions/language have no real
+  // source anywhere in this system yet (see IncidentDetail.tsx's own note).
+  occupant_hint: number | null;
+  timeline: TimelineEvent[];
 }
 
 // app/api/risk.py's RiskContextOut

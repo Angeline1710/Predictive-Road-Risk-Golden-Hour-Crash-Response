@@ -37,3 +37,20 @@ html, body, #root {
   69.2% { transform: translateX(calc(100% + 20px)) skewX(-12deg); }
   100% { transform: translateX(calc(100% + 20px)) skewX(-12deg); }
 }
+
+/* UX-APPFLOW.md §22: "Export produces PDF ... The Simulation Seal renders
+   in the PDF, at full fidelity." IncidentDetail.tsx's Print/Save-as-PDF
+   export is the browser's own print pipeline against this page's live DOM
+   (not a second, separately-maintained PDF template), so the Seal always
+   renders exactly as shown -- these rules just strip the app chrome
+   ([data-print-hide], on Shell's nav rail/header/honesty bar) and let the
+   content flow past one 100vh screen instead of clipping at it. */
+@media print {
+  [data-print-hide] {
+    display: none !important;
+  }
+  html, body, #root, main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}

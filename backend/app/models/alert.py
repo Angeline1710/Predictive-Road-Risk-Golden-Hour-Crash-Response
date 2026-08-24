@@ -70,6 +70,7 @@ class Alert(Base):
     model_b_version: Mapped[str | None] = mapped_column(Text)
     is_simulated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     has_trace: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    occupant_hint: Mapped[int | None] = mapped_column(SmallInteger)
 
     __table_args__ = (
         Index("alerts_geom_gix", "geom", postgresql_using="gist"),

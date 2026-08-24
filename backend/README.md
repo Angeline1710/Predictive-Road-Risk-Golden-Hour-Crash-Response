@@ -65,7 +65,7 @@ call to the dispatch gateway.
 | Piece | Status |
 |---|---|
 | Schema (14 tables, PRD §9) | Real, migrated, verified |
-| `POST /alerts`, `GET /alerts/{uuid}`, `GET /alerts` (list) | Real: persists, map-matches, scores, dispatches, idempotent. List endpoint is a cold-start snapshot for the dashboard rail, not paginated -- see its docstring |
+| `POST /alerts`, `GET /alerts/{uuid}`, `GET /alerts` (list) | Real: persists, map-matches, scores, dispatches, idempotent. List endpoint is a cold-start snapshot for the dashboard rail, not paginated -- see its docstring. `GET /alerts/{uuid}` (2026-08-24) now returns the full row for `web/`'s Incident Detail view -- motion, conditions, the real `alert_events` timeline, `top_factors` (recomputed from the stored segment/time, since only score/band are persisted columns) -- not just the four rail fields it returned before |
 | `POST /ingest/sms` | Real: parses the RRX1 wire protocol, CRC-checks, mirrors the HTTPS ingest pipeline. The PRD's own worked-example CRC doesn't reproduce under CRC-8/ATM or 9 other tested variants -- documented in `app/services/sms_protocol.py` as a PRD placeholder-text issue, not a bug here |
 | `GET /risk/point`, `GET /risk/bbox` | Real: loads `risk_model_v1.txt` (LightGBM), returns score/band/SHAP top-3 **and segment geometry** (added for the dashboard's map overlay). `/risk/route`, `/risk/tiles` still absent -- left unimplemented rather than stubbed with fake data |
 | `SimulatedPmRahatGateway` | Real state machine + PostGIS nearest-responder + injectable failure modes (`GatewayModeState`), per PRD §11.2 |
@@ -90,5 +90,6 @@ app/
 ├── schemas/     Pydantic request/response
 ├── ml/          (empty -- Model B serving not wired up yet)
 └── workers/     (empty -- nightly precompute not built yet)
-alembic/         hand-written initial migration (0001), matches PRD §9 exactly
+alembic/         hand-written initial migration (0001, matches PRD §9 exactly)
+                 + 0002 (alerts.occupant_hint, for web/'s Incident Detail)
 ```

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, connectEvents, recentLatencyP95 } from "../lib/api";
 import type { AlertCreatedData, AlertStatusChangedData, AlertSummary } from "../lib/api";
@@ -31,6 +32,7 @@ function sortIncidents(list: AlertSummary[]): AlertSummary[] {
 export function LiveOperations() {
   const setTheme = useThemeStore((s) => s.setTheme);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [liveIncidents, setLiveIncidents] = useState<AlertSummary[]>([]);
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
@@ -251,6 +253,7 @@ export function LiveOperations() {
                 alert={alert}
                 selected={alert.alert_uuid === selectedUuid}
                 onSelect={() => setSelectedUuid(alert.alert_uuid)}
+                onOpenDetail={() => navigate(`/incidents/${alert.alert_uuid}`)}
               />
             ))}
           </div>
