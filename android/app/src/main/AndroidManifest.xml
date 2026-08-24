@@ -4,7 +4,11 @@
   exactly. INTERNET, ACCESS_FINE_LOCATION, ACTIVITY_RECOGNITION,
   FOREGROUND_SERVICE, FOREGROUND_SERVICE_LOCATION, POST_NOTIFICATIONS, and
   USE_FULL_SCREEN_INTENT are now exercised (Drive Mode, transport, and the
-  crash countdown screen's full-screen-intent notification). SEND_SMS,
+  crash countdown screen's full-screen-intent notification). VIBRATE
+  (2026-08-25) backs both CrashHapticController and the new
+  RiskWarningController (UX-APPFLOW.md §14): Vibrator.vibrate() calls
+  existed in the crash-flow code before this permission was ever declared,
+  a pre-existing gap this closes for both call sites at once. SEND_SMS,
   ACCESS_BACKGROUND_LOCATION, and RECEIVE_BOOT_COMPLETED are declared but
   not yet used. SEND_SMS and ACCESS_BACKGROUND_LOCATION need a Play Store
   permissions declaration with a demo video that is "a real, weeks-long
@@ -32,6 +36,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".RrxApplication"

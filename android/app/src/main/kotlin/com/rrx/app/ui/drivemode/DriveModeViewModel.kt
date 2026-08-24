@@ -7,9 +7,12 @@ import com.rrx.app.network.dto.RiskContextDto
 import com.rrx.coresensing.DriveSensingBus
 import com.rrx.coresensing.DriveSessionState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -51,9 +54,28 @@ class DriveModeViewModel @Inject constructor(
             .sortedBy { it.distanceM }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // UX-APPFLOW.md §14 / PRD.md §8.4 (FR-4.2/4.4/4.5): the one-shot voice
+    // (+ haptic, for Severe) event DriveModeScreen fires as a side effect.
+    // A SharedFlow, not a StateFlow -- each entry is a discrete "this just
+    // happened" moment (matching a fresh collector shouldn't replay a stale
+    // warning), unlike nearbySegments' continuously-current snapshot.
+    private val _warningEvents = MutableSharedFlow<RiskWarningEvent>(extraBufferCapacity = 1)
+    val warningEvents: SharedFlow<RiskWarningEvent> = _warningEvents.asSharedFlow()
+
+    private val _severeOverlay = MutableStateFlow<SevereOverlayState?>(null)
+    val severeOverlay: StateFlow<SevereOverlayState?> = _severeOverlay.asStateFlow()
+
     private var lastFetchLat: Double? = null
     private var lastFetchLon: Double? = null
     private var isFetching = false
+
+    // Which segment was nearest as of the last evaluation, regardless of
+    // band -- "entering" a High/Severe segment is detected as this value
+    // changing while the new nearest segment is notable, not a separate
+    // in-segment/out-of-segment state machine.
+    private var lastNearestSegmentId: Int? = null
+    private var activeSevereSegmentId: Int? = null
+    private val lastWarnedAtMs = mutableMapOf<Int, Long>()
 
     init {
         viewModelScope.launch {
@@ -61,6 +83,58 @@ class DriveModeViewModel @Inject constructor(
                 val fix = (state as? DriveSessionState.Sensing)?.gpsFix ?: return@collect
                 maybeRefetch(fix.lat, fix.lon)
             }
+        }
+        viewModelScope.launch {
+            combine(sessionState, nearbySegments) { state, nearby -> state to nearby }
+                .collect { (state, nearby) -> evaluateRiskWarning(state, nearby) }
+        }
+    }
+
+    private fun evaluateRiskWarning(state: DriveSessionState, nearby: List<NearbySegment>) {
+        val nearest = nearby.firstOrNull()
+        updateSevereOverlay(nearest)
+
+        val previousSegmentId = lastNearestSegmentId
+        lastNearestSegmentId = nearest?.risk?.segmentId
+        if (nearest == null || !nearest.band.isNotable) return
+        if (nearest.risk.segmentId == previousSegmentId) return   // not a fresh entry
+
+        // FR-4.5: suppress all voice warnings below 25 km/h. Deliberately
+        // gates the whole event (voice + haptic + overlay), not just the
+        // TTS call -- §14 doesn't separately spec overlay-without-voice
+        // behaviour at low speed. Scope simplification, documented rather
+        // than silently assumed: entering a notable segment below this
+        // speed and later accelerating WITHIN that same segment does not
+        // retroactively fire the warning, since the entry edge already
+        // passed (unfired) and the segment id hasn't changed since.
+        val speedKmh = (state as? DriveSessionState.Sensing)?.speedKmh ?: 0f
+        if (speedKmh < SPEED_GATE_KMH) return
+
+        // FR-4.4: suppress repeat warnings for the same segment within 15 min.
+        val now = System.currentTimeMillis()
+        val last = lastWarnedAtMs[nearest.risk.segmentId]
+        if (last != null && now - last < COOLDOWN_MS) return
+        lastWarnedAtMs[nearest.risk.segmentId] = now
+
+        _warningEvents.tryEmit(RiskWarningEvent(nearest.risk.segmentId, nearest.band, nearest.risk.topFactors))
+        if (nearest.band == RiskBand.SEVERE) {
+            activeSevereSegmentId = nearest.risk.segmentId
+            _severeOverlay.value = SevereOverlayState(nearest.risk.segmentId, nearest.risk.topFactors, nearest.distanceM)
+        }
+    }
+
+    /** "Auto-dismisses on exiting the segment" (UX-APPFLOW.md §14) -- runs
+     * every evaluation, independent of whether a new warning just fired,
+     * so the live distance countdown keeps updating and the overlay
+     * disappears the moment the driver is no longer nearest to the
+     * triggering segment or its band has dropped below Severe. */
+    private fun updateSevereOverlay(nearest: NearbySegment?) {
+        val activeId = activeSevereSegmentId ?: return
+        if (nearest != null && nearest.risk.segmentId == activeId && nearest.band == RiskBand.SEVERE) {
+            _severeOverlay.value = SevereOverlayState(activeId, nearest.risk.topFactors, nearest.distanceM)
+        } else {
+            activeSevereSegmentId = null
+            _severeOverlay.value = null
         }
     }
 
@@ -102,5 +176,9 @@ class DriveModeViewModel @Inject constructor(
         const val BBOX_HALF_DEGREES = 0.01
         const val REFETCH_DISTANCE_M = 300.0
         const val REFETCH_INTERVAL_MS = 15_000L
+
+        // PRD.md §8.4.
+        const val SPEED_GATE_KMH = 25.0     // FR-4.5
+        const val COOLDOWN_MS = 15 * 60 * 1000L   // FR-4.4
     }
 }

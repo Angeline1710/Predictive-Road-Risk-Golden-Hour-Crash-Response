@@ -105,11 +105,30 @@ already returns. `RiskBand.fromApi()` mirrors `web/src/lib/bands.ts`'s
 `bandKeyFromApi()` -- same defensive parsing of the capitalized band
 strings, different language.
 
-Still missing: Risk Warning (§14 -- voice/haptic/overlay on entering a
-High/Severe segment), the ambient/screen-off persistent-notification
-upgrade (still the plain-text one from the sensing pass), always-on
-driving detection, and a post-onboarding Settings screen. See
-MVP-PLAN.md §3.3 for what's left and its cost.
+**Risk Warning (§14) is now built and verified via Docker (2026-08-25)** --
+`DriveModeViewModel` tracks the driver's *nearest* segment frame-to-frame
+(no separate current/nearby state machine; "entering" is that value
+changing while the new nearest segment's band is High or Severe) and
+fires one `RiskWarningEvent` per qualifying entry, gated by FR-4.5 (25
+km/h floor) and FR-4.4 (15-minute per-segment cooldown, a plain
+`Map<Int, Long>` timestamp store). `DriveModeScreen` consumes that as a
+one-shot side effect: `RiskWarningController` speaks the top SHAP factor
+(FR-4.6) via TTS on `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` -- audible in
+normal ringer mode but silent when the phone is silenced, deliberately
+*not* the crash siren's DND-overriding `STREAM_ALARM` treatment, since
+§14 frames silence at Low/Moderate as a trust-building restraint, not
+something Severe should punch through the user's own silence setting for.
+Severe additionally fires a double haptic pulse and renders a bottom-
+anchored overlay card (real cross-hatch texture drawn at 6% opacity, the
+NFR-A3 hatch pattern missing everywhere else in this build) with a live
+distance countdown -- nearest-vertex distance, the same documented proxy
+`NearbySegment` uses elsewhere, not a true distance-ahead. Auto-dismisses
+the instant the driver is no longer nearest to the triggering segment.
+
+Still missing: the ambient/screen-off persistent-notification upgrade
+(still the plain-text one from the sensing pass), always-on driving
+detection, and a post-onboarding Settings screen. See MVP-PLAN.md §3.3
+for what's left and its cost.
 
 ### Sensing scope notes (real limitations, not oversights)
 
@@ -307,10 +326,26 @@ MVP-PLAN.md §3.3 for what's left and its cost.
   cell needs a `Shader`/`PathEffect` this pass didn't build. Colour
   alone still isn't the only signal (the letter token is real), but the
   full accessibility spec isn't met yet.
-- **§14's Risk Warning (voice + haptic + Severe overlay on entering a
-  High/Severe segment) isn't built.** This screen only shows the ribbon
-  passively; nothing watches for a band transition and fires the
-  spec'd audio/haptic/overlay escalation yet.
+- **§14's Risk Warning is real but its "entering a segment" signal
+  inherits the same nearest-vertex proxy as everything else above.**
+  `DriveModeViewModel` treats a change in the *nearest* segment as
+  "entering" it -- correct in the common case, but on a winding road or
+  near an intersection the nearest segment can flicker between two
+  candidates without the driver actually crossing from one onto the
+  other, which could in principle re-arm the FR-4.4 cooldown early. A
+  true entry/exit detector needs the same map-matching this file already
+  says §13 doesn't have.
+- **Entering a High/Severe segment below the 25 km/h floor, then
+  accelerating within that same segment, never retroactively fires the
+  warning.** FR-4.5's speed gate is checked only at the entry edge (the
+  segment-id transition); once that edge has passed unfired, nothing
+  re-evaluates it until the segment changes again. A documented
+  simplification, not a spec requirement either way -- §14 doesn't say
+  what should happen in this case.
+- **Voice warnings are English-only**, the same gap `CrashAudioController`
+  already has -- `RiskWarningController` hardcodes `Locale.ENGLISH`;
+  5-language support exists in onboarding's string resources but isn't
+  wired into any spoken-warning path yet.
 - **The ambient/screen-off notification is unchanged from the sensing
   pass** -- still `DriveSensingService`'s plain "Monitoring for crashes"
   text, not §13's `● Active · 68 km/h · NH-45 · Next: Severe in 2.1 km`
@@ -434,3 +469,19 @@ MVP-PLAN.md §3.3 for what's left and its cost.
   duplicate (a plain Compose `Canvas` heading arrow, no Milestone
   Markers). Consolidated onto the more complete file rather than ship
   two competing implementations, one of them dead code.
+- **The XML `--`-in-comment bug recurred a *fifth* time**, this pass's
+  own contribution: `AndroidManifest.xml`'s permissions comment, editing
+  it to explain the new `VIBRATE` permission, used a prose em-dash-style
+  `--` mid-sentence and failed `:app:processDebugMainManifest` with the
+  same `ManifestMerger2$MergeFailureException` as every prior occurrence.
+  Five occurrences across five passes now, two file types (manifest,
+  string resources) -- caught immediately by the Docker build rather than
+  shipped, same as every time before, but the pattern clearly isn't going
+  to self-correct by habit; any future XML edit in this codebase should
+  be grepped for `--` before it's trusted, not written on the assumption
+  this pass finally remembered. Also worth noting: `VIBRATE` itself
+  closed a real, separate pre-existing gap this pass found on review --
+  `CrashHapticController` had been calling `Vibrator.vibrate()` since the
+  crash-countdown pass without the manifest ever declaring the
+  permission, silently relying on it happening to work on whichever
+  emulator/device someone tested with rather than on a declared contract.
