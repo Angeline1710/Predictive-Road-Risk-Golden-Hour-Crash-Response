@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
-import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AlertSummary, RiskPoint } from "../lib/api";
-import { RISK_BANDS, SEVERITY_BANDS, bandKeyFromApi, severityKeyFromApi, type RiskBandKey } from "../lib/bands";
+import { SEVERITY_BANDS, severityKeyFromApi } from "../lib/bands";
 import { MilestoneMarker, type MarkerZoomTier } from "./MilestoneMarker";
 import { isUnacknowledged } from "./IncidentCard";
+import { RiskOverlay } from "./RiskOverlay";
 
 // NH-45/Chengalpattu corridor -- etl/extract_corridor.py's CORRIDOR_BBOX,
 // the only area the ETL has populated with real segment data.
@@ -21,7 +22,7 @@ function zoomTierFor(zoom: number): MarkerZoomTier {
   return "full";
 }
 
-function markerIcon(subLabel: string, band: (typeof RISK_BANDS)["low"], zoomTier: MarkerZoomTier, pulsing: boolean, selected: boolean) {
+function markerIcon(subLabel: string, band: (typeof SEVERITY_BANDS)["minor"], zoomTier: MarkerZoomTier, pulsing: boolean, selected: boolean) {
   const html = renderToStaticMarkup(
     <MilestoneMarker band={band} subLabel={subLabel} zoomTier={zoomTier} pulsing={pulsing} selected={selected} />
   );
@@ -85,36 +86,7 @@ export function LiveMap({ riskSegments, showRisk, incidents, selectedUuid, onSel
         maxZoom={19}
       />
 
-      {showRisk &&
-        riskSegments.map((seg) => {
-          const bandKey: RiskBandKey = bandKeyFromApi(seg.band);
-          const spec = RISK_BANDS[bandKey];
-          const positions = seg.geometry.map(([lon, lat]) => [lat, lon] as [number, number]);
-          return (
-            <Polyline
-              key={seg.segment_id}
-              positions={positions}
-              pathOptions={{
-                color: spec.cssVar,
-                weight: spec.mapStroke,
-                opacity: 0.6,
-                dashArray: spec.pattern === "dashed" ? "4 3" : undefined,
-              }}
-            >
-              <Popup>
-                <div style={{ fontFamily: "var(--font-telemetry)", fontSize: 12 }}>
-                  <div>
-                    SEG {seg.segment_id} — {spec.letter} {seg.score.toFixed(2)}
-                  </div>
-                  <div style={{ color: "var(--ink-muted)" }}>{seg.district ?? "unknown district"}</div>
-                  {seg.top_factors.slice(0, 3).map((f) => (
-                    <div key={f}>{f}</div>
-                  ))}
-                </div>
-              </Popup>
-            </Polyline>
-          );
-        })}
+      {showRisk && <RiskOverlay segments={riskSegments} />}
 
       {incidents.map((inc) => {
         const spec = SEVERITY_BANDS[severityKeyFromApi(inc.severity)];

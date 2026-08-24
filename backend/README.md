@@ -67,7 +67,7 @@ call to the dispatch gateway.
 | Schema (14 tables, PRD §9) | Real, migrated, verified |
 | `POST /alerts`, `GET /alerts/{uuid}`, `GET /alerts` (list) | Real: persists, map-matches, scores, dispatches, idempotent. List endpoint is a cold-start snapshot for the dashboard rail, not paginated -- see its docstring. `GET /alerts/{uuid}` (2026-08-24) now returns the full row for `web/`'s Incident Detail view -- motion, conditions, the real `alert_events` timeline, `top_factors` (recomputed from the stored segment/time, since only score/band are persisted columns) -- not just the four rail fields it returned before |
 | `POST /ingest/sms` | Real: parses the RRX1 wire protocol, CRC-checks, mirrors the HTTPS ingest pipeline. The PRD's own worked-example CRC doesn't reproduce under CRC-8/ATM or 9 other tested variants -- documented in `app/services/sms_protocol.py` as a PRD placeholder-text issue, not a bug here |
-| `GET /risk/point`, `GET /risk/bbox` | Real: loads `risk_model_v1.txt` (LightGBM), returns score/band/SHAP top-3 **and segment geometry** (added for the dashboard's map overlay). `/risk/route`, `/risk/tiles` still absent -- left unimplemented rather than stubbed with fake data |
+| `GET /risk/point`, `GET /risk/bbox` | Real: loads `risk_model_v1.txt` (LightGBM), returns score/band/SHAP top-3 **and segment geometry** (added for the dashboard's map overlay). `GET /risk/bbox` (2026-08-24) also accepts optional `weather`/`visibility`/`traffic_density` overrides, whitelisted to the exact categories the model was trained on -- powers `web/`'s Risk Map condition simulator (UX-APPFLOW §23), verified to move a real segment 0.0016 Low → 0.021 High under simulated heavy rain/low visibility/high traffic at 23:00. `alerts.py`'s real-alert scoring path never passes these, so it's unaffected. `/risk/route`, `/risk/tiles` still absent -- left unimplemented rather than stubbed with fake data |
 | `SimulatedPmRahatGateway` | Real state machine + PostGIS nearest-responder + injectable failure modes (`GatewayModeState`), per PRD §11.2 |
 | `POST /devices/register`, `POST /devices/{id}/heartbeat`, `GET /devices/count` | Real. Heartbeat is the only route gated by device JWT so far |
 | `WS /ws/events` | Real Redis pub/sub fan-out, verified live against the dashboard (a `curl`'d `/sim/crash` appeared in the rail with no page reload) |
@@ -76,6 +76,8 @@ call to the dispatch gateway.
 | Weather/traffic enrichment | Map-match is real; weather/traffic external API calls honestly degrade to "unavailable" -- no API key configured, by design not oversight |
 | `/risk/route`, `/risk/tiles`, dashboard-facing RBAC | **Not implemented.** Device JWT exists; there is no operator/analyst login, so every dashboard-facing route is open |
 | Redis | Used for alert dedup (SETNX), the durable never-reject fallback queue, and WS pub/sub |
+
+**Known perf gap:** `GET /risk/bbox` at `limit=1000` (the corridor's full segment count, used by both Live Operations and Risk Map) takes ~26s in this Docker setup -- each segment runs two LightGBM `.predict()` calls (score + SHAP contribution) sequentially in Python, not batched. Correct, not fast. Tolerable for a demo where the panel re-renders after a slider release, not for a production analyst tool moving the slider continuously -- batching the DataFrame into one `.predict()` call per request instead of one per segment is the fix, not yet done.
 
 ## Repository layout
 

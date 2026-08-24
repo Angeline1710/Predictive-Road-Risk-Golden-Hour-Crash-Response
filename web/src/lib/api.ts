@@ -89,6 +89,12 @@ export interface AlertResponse {
   timeline: TimelineEvent[];
 }
 
+// app/api/risk.py's risk_bbox condition-simulator overrides -- the exact
+// categories risk_model_v1.txt was trained on (ml/risk_model/build_panel.py).
+export type WeatherOverride = "clear" | "rain" | "fog";
+export type VisibilityOverride = "high" | "medium" | "low";
+export type TrafficOverride = "low" | "medium" | "high";
+
 // app/api/risk.py's RiskContextOut
 export interface RiskPoint {
   segment_id: number;
@@ -202,10 +208,21 @@ export const api = {
       `/v1/risk/point?lat=${lat}&lon=${lon}${at ? `&at=${encodeURIComponent(at)}` : ""}`
     ),
 
-  riskBbox: (minlat: number, minlon: number, maxlat: number, maxlon: number, limit = 500) =>
-    request<RiskPoint[]>(
-      `/v1/risk/bbox?minlat=${minlat}&minlon=${minlon}&maxlat=${maxlat}&maxlon=${maxlon}&limit=${limit}`
-    ),
+  riskBbox: (
+    minlat: number, minlon: number, maxlat: number, maxlon: number,
+    opts: { limit?: number; at?: string; weather?: WeatherOverride; visibility?: VisibilityOverride; trafficDensity?: TrafficOverride } = {}
+  ) => {
+    const { limit = 500, at, weather, visibility, trafficDensity } = opts;
+    const params = new URLSearchParams({
+      minlat: String(minlat), minlon: String(minlon), maxlat: String(maxlat), maxlon: String(maxlon),
+      limit: String(limit),
+    });
+    if (at) params.set("at", at);
+    if (weather) params.set("weather", weather);
+    if (visibility) params.set("visibility", visibility);
+    if (trafficDensity) params.set("traffic_density", trafficDensity);
+    return request<RiskPoint[]>(`/v1/risk/bbox?${params}`);
+  },
 
   simCrash: (body: { lat?: number; lon?: number; severity?: Severity; channel_hint?: "DATA" | "SMS" }) =>
     request<AlertResponse>("/v1/sim/crash", { method: "POST", body: JSON.stringify(body) }),

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -90,6 +91,15 @@ async def risk_bbox(
     minlat: float = Query(ge=-90, le=90), minlon: float = Query(ge=-180, le=180),
     maxlat: float = Query(ge=-90, le=90), maxlon: float = Query(ge=-180, le=180),
     at: datetime | None = Query(default=None),
+    # Condition-simulator overrides (UX-APPFLOW.md §23) -- omit all three for
+    # real-time scoring. Restricted to the exact categories risk_model_v1.txt
+    # was trained on (ml/risk_model/build_panel.py); any other string would
+    # silently fall through LightGBM's saved category mapping to an
+    # "unknown" code rather than error, so this whitelist is load-bearing,
+    # not decorative.
+    weather: Literal["clear", "rain", "fog"] | None = Query(default=None),
+    visibility: Literal["high", "medium", "low"] | None = Query(default=None),
+    traffic_density: Literal["low", "medium", "high"] | None = Query(default=None),
     limit: int = Query(default=200, le=1000),
     db: AsyncSession = Depends(get_db),
 ) -> list[RiskContextOut]:
@@ -106,7 +116,9 @@ async def risk_bbox(
     at = at or datetime.now(UTC)
     out = []
     for seg, geojson_text in rows:
-        result = predict(features_from_segment(seg, at))
+        result = predict(features_from_segment(
+            seg, at, weather=weather, visibility=visibility, traffic_density=traffic_density,
+        ))
         out.append(RiskContextOut(
             segment_id=seg.segment_id, district=seg.district, road_class=seg.road_class,
             score=result.score, band=result.band, top_factors=result.top_factors,

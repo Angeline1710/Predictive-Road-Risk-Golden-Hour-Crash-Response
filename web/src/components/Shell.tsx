@@ -15,7 +15,7 @@ export type NavDestination = "operations" | "incidents" | "risk-map" | "analytic
 const NAV_ITEMS: { id: NavDestination; label: string; glyph: string; built: boolean; path: string }[] = [
   { id: "operations", label: "Live Operations", glyph: "▣", built: true, path: "/" },
   { id: "incidents", label: "Incidents", glyph: "◈", built: false, path: "" },
-  { id: "risk-map", label: "Risk Map", glyph: "◐", built: false, path: "/risk-map" },
+  { id: "risk-map", label: "Risk Map", glyph: "◐", built: true, path: "/risk-map" },
   { id: "analytics", label: "Analytics", glyph: "▤", built: false, path: "/analytics" },
   { id: "simulator", label: "Simulator", glyph: "⚗", built: false, path: "/simulator" },
 ];
@@ -31,10 +31,11 @@ export interface ShellProps {
   children: ReactNode;
 }
 
-/** App shell -- nav rail, top bar, honesty bar (UX-APPFLOW.md §20). Only
- * Live Operations (task #15) is built; the other four destinations render
- * disabled per the project's honest-degradation posture (§2 P2) rather
- * than linking to pages that don't exist yet. */
+/** App shell -- nav rail, top bar, honesty bar (UX-APPFLOW.md §20). Live
+ * Operations and Risk Map are built; Incidents has no standalone
+ * destination (see the NAV_ITEMS comment above) and Analytics/Simulator
+ * still render disabled per the project's honest-degradation posture
+ * (§2 P2) rather than linking to pages that don't exist yet. */
 export function Shell({ title, active, role = "OPERATOR", honestyFeeds, latencyMs, latencyLabel, deviceCount, children }: ShellProps) {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);

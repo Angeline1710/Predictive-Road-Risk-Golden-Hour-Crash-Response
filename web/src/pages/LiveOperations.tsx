@@ -63,7 +63,7 @@ export function LiveOperations() {
   const riskQuery = useQuery({
     queryKey: ["risk", "bbox", atTime.toISOString().slice(0, 13)], // bucket by hour -- matches Model B's segment×hour grain
     queryFn: () =>
-      api.riskBbox(CORRIDOR_BOUNDS[0][0], CORRIDOR_BOUNDS[0][1], CORRIDOR_BOUNDS[1][0], CORRIDOR_BOUNDS[1][1], 1000),
+      api.riskBbox(CORRIDOR_BOUNDS[0][0], CORRIDOR_BOUNDS[0][1], CORRIDOR_BOUNDS[1][0], CORRIDOR_BOUNDS[1][1], { limit: 1000 }),
   });
 
   // Seed the live-updating incident list from the cold-start snapshot.

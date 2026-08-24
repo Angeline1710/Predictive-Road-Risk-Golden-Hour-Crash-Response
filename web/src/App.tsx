@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { LiveOperations } from './pages/LiveOperations'
 import { IncidentDetail } from './pages/IncidentDetail'
+import { RiskMap } from './pages/RiskMap'
 import { ComponentGallery } from './pages/ComponentGallery'
 
 function App() {
@@ -12,6 +13,8 @@ function App() {
           Shell.tsx's own comment explains why "Incidents" stays disabled
           in the nav rail even though this route is real. */}
       <Route path="/incidents/:uuid" element={<IncidentDetail />} />
+      {/* UX-APPFLOW.md §23. Nav rail destination, unlike Incident Detail. */}
+      <Route path="/risk-map" element={<RiskMap />} />
       {/* Signature-component design-system check (UX-APPFLOW.md §7) --
           kept reachable for QA, not part of the operator-facing flow. */}
       <Route path="/gallery" element={<ComponentGallery />} />

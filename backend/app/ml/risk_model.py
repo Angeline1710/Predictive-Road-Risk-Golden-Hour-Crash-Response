@@ -124,7 +124,12 @@ def _row(f: RiskFeatures) -> pd.DataFrame:
     return df
 
 
-def features_from_segment(segment, at: datetime) -> RiskFeatures:
+def features_from_segment(
+    segment, at: datetime, *,
+    weather: str | None = None,
+    visibility: str | None = None,
+    traffic_density: str | None = None,
+) -> RiskFeatures:
     """Shared by app/api/risk.py (viewport/point queries) and
     app/services/alerts.py (scoring a just-received alert's matched
     segment) so the two call sites cannot drift into different feature
@@ -143,8 +148,15 @@ def features_from_segment(segment, at: datetime) -> RiskFeatures:
     constant is accurate here, not an approximation; it stops being exactly
     right only if a future extraction spans multiple districts, at which
     point this needs a real per-district lookup instead of a constant.
+
+    weather/visibility/traffic_density: optional condition-simulator
+    overrides (UX-APPFLOW.md §23's "which stretches become Severe under
+    heavy rain at 11 p.m.?"). None (every real caller today -- alerts.py
+    never passes these) leaves RiskFeatures' own fallback-prior defaults
+    in place ("clear"/"high"/"medium", PRD §6.4); a caller only overrides
+    what it actually wants hypothetical.
     """
-    return RiskFeatures(
+    features = RiskFeatures(
         district=segment.district or "Chengalpattu",   # PRD demo corridor, MVP-PLAN.md §2
         road_class=segment.road_class or "primary",
         exposure=2.2, is_urban=bool(segment.is_urban), curvature_deg=segment.curvature_deg or 0.0,
@@ -154,6 +166,13 @@ def features_from_segment(segment, at: datetime) -> RiskFeatures:
         district_fatal_share=0.280, district_vru_share=0.326, district_heavy_share=0.250,
         district_total_2021=1614.0, district_yoy=1.197, at=at,
     )
+    if weather is not None:
+        features.weather = weather
+    if visibility is not None:
+        features.visibility = visibility
+    if traffic_density is not None:
+        features.traffic_density = traffic_density
+    return features
 
 
 def band_for(score: float) -> str:
