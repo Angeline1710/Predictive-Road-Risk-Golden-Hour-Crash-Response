@@ -98,6 +98,48 @@ export type TrafficOverride = "low" | "medium" | "high";
 // app/gateways/simulated.py's GatewayMode
 export type GatewayMode = "ok" | "slow" | "timeout" | "reject";
 
+// app/api/analytics.py's AnalyticsSummary and its nested models
+export interface LatencyBucket {
+  label: string;
+  le_s: number | null;
+  count: number;
+}
+export interface ResponseLatency {
+  n: number;
+  p50_s: number | null;
+  p95_s: number | null;
+  p99_s: number | null;
+  histogram: LatencyBucket[];
+}
+export interface ChannelBucket {
+  hour: string;
+  data: number;
+  sms: number;
+  manual_sos: number;
+}
+export interface GoldenHourStats {
+  n: number;
+  within_60min_pct: number | null;
+  within_30min_pct: number | null;
+  within_15min_pct: number | null;
+}
+export interface CoverageStats {
+  devices_active: number;
+  devices_total: number;
+  segment_count: number;
+  network_km: number;
+  districts: string[];
+  responder_unit_count: number;
+}
+export interface AnalyticsSummary {
+  since_hours: number;
+  alert_count: number;
+  response_latency: ResponseLatency;
+  channel_mix: ChannelBucket[];
+  golden_hour: GoldenHourStats;
+  coverage: CoverageStats;
+}
+
 // app/api/risk.py's RiskContextOut
 export interface RiskPoint {
   segment_id: number;
@@ -244,6 +286,9 @@ export const api = {
     }),
 
   deviceCount: () => request<DeviceCount>("/v1/devices/count"),
+
+  analyticsSummary: (sinceHours = 24) =>
+    request<AnalyticsSummary>(`/v1/analytics/summary?since_hours=${sinceHours}`),
 };
 
 /** PRD §10.3 `WS /ws/events` -- Redis pub/sub fan-out. Auto-reconnects with

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
 from app.api.alerts import router as alerts_router
+from app.api.analytics import router as analytics_router
 from app.api.devices import router as devices_router
 from app.api.risk import router as risk_router
 from app.api.sms import router as sms_router
@@ -46,6 +47,7 @@ app.add_middleware(
 )
 
 app.include_router(alerts_router, prefix="/v1")
+app.include_router(analytics_router, prefix="/v1")
 app.include_router(devices_router, prefix="/v1")
 app.include_router(risk_router, prefix="/v1")
 app.include_router(sms_router, prefix="/v1")

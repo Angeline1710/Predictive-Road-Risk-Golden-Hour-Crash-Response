@@ -72,6 +72,7 @@ call to the dispatch gateway.
 | `POST /devices/register`, `POST /devices/{id}/heartbeat`, `GET /devices/count` | Real. Heartbeat is the only route gated by device JWT so far |
 | `WS /ws/events` | Real Redis pub/sub fan-out, verified live against the dashboard (a `curl`'d `/sim/crash` appeared in the rail with no page reload) |
 | `/sim/*` | Real, env-flag gated (`RRX_DEMO_MODE`) |
+| `GET /analytics/summary` | Real (2026-08-24): live GROUP BY/aggregate queries over `alerts`/`dispatches`/`devices`/`road_segments`/`responder_units` for `web/`'s Analytics view -- response-latency percentiles + histogram, channel mix by hour, Golden Hour ack-rate, and network coverage. Two of §24's six panels (Detection quality, Risk model performance) are NOT served here -- neither has a live-database source, so the frontend renders them from static report constants instead, clearly labelled. The "acknowledgement" this endpoint measures is `Dispatch.acknowledged_at`, set synchronously the instant the simulated gateway responds -- a real, honest number, but not a live PM-RAHAT/ERSS-112 field ack, and the frontend says so next to every number that uses it |
 | Map-matching | Real PostGIS query against `road_segments`, populated by the ETL (`../etl/`) |
 | Weather/traffic enrichment | Map-match is real; weather/traffic external API calls honestly degrade to "unavailable" -- no API key configured, by design not oversight |
 | `/risk/route`, `/risk/tiles`, dashboard-facing RBAC | **Not implemented.** Device JWT exists; there is no operator/analyst login, so every dashboard-facing route is open |
@@ -85,7 +86,7 @@ Matches PRD §12.6:
 
 ```
 app/
-├── api/        FastAPI routers
+├── api/        FastAPI routers (alerts, analytics, devices, risk, sms, ws, sim)
 ├── services/    business logic (alerts.py, segments.py, responders.py)
 ├── gateways/    DispatchGateway protocol + SimulatedPmRahatGateway
 ├── models/      SQLAlchemy + GeoAlchemy2

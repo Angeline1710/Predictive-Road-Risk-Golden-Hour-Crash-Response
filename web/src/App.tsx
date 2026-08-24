@@ -3,6 +3,7 @@ import { LiveOperations } from './pages/LiveOperations'
 import { IncidentDetail } from './pages/IncidentDetail'
 import { RiskMap } from './pages/RiskMap'
 import { SimulatorConsole } from './pages/SimulatorConsole'
+import { Analytics } from './pages/Analytics'
 import { ComponentGallery } from './pages/ComponentGallery'
 
 function App() {
@@ -22,6 +23,8 @@ function App() {
           RRX_DEMO_MODE is off, so this page's calls would just fail
           honestly rather than needing a second client-side lock). */}
       <Route path="/simulator" element={<SimulatorConsole />} />
+      {/* UX-APPFLOW.md §24. */}
+      <Route path="/analytics" element={<Analytics />} />
       {/* Signature-component design-system check (UX-APPFLOW.md §7) --
           kept reachable for QA, not part of the operator-facing flow. */}
       <Route path="/gallery" element={<ComponentGallery />} />

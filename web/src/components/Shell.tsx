@@ -24,7 +24,7 @@ const NAV_ITEMS: { id: NavDestination; label: string; glyph: string; built: bool
   { id: "operations", label: "Live Operations", glyph: "▣", built: true, path: "/" },
   { id: "incidents", label: "Incidents", glyph: "◈", built: false, path: "" },
   { id: "risk-map", label: "Risk Map", glyph: "◐", built: true, path: "/risk-map" },
-  { id: "analytics", label: "Analytics", glyph: "▤", built: false, path: "/analytics" },
+  { id: "analytics", label: "Analytics", glyph: "▤", built: true, path: "/analytics" },
   ...(DEMO_MODE ? [{ id: "simulator" as const, label: "Simulator", glyph: "⚗", built: true, path: "/simulator" }] : []),
 ];
 
@@ -40,10 +40,9 @@ export interface ShellProps {
 }
 
 /** App shell -- nav rail, top bar, honesty bar (UX-APPFLOW.md §20). Live
- * Operations, Risk Map, and Simulator Console are built; Incidents has no
- * standalone destination (see the NAV_ITEMS comment above) and Analytics
- * still renders disabled per the project's honest-degradation posture
- * (§2 P2) rather than linking to a page that doesn't exist yet. */
+ * Operations, Risk Map, Simulator Console, and Analytics are all built now
+ * -- every dashboard nav item is either real or (Incidents) intentionally
+ * absent as a standalone destination (see the NAV_ITEMS comment above). */
 export function Shell({ title, active, role = "OPERATOR", honestyFeeds, latencyMs, latencyLabel, deviceCount, children }: ShellProps) {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
