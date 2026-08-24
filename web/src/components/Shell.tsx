@@ -6,6 +6,14 @@ import { SystemHonestyBar } from "./SystemHonestyBar";
 
 export type NavDestination = "operations" | "incidents" | "risk-map" | "analytics" | "simulator";
 
+// UX-APPFLOW.md §25: "In production builds the nav item is absent, not
+// disabled" for the Simulator Console -- mirrors the backend's own
+// RRX_DEMO_MODE gate (app/main.py only registers /sim/* at all when
+// settings.demo_mode is true, config.py defaults it true). Unset ->
+// visible, matching that same default; a real production build sets
+// VITE_DEMO_MODE=false explicitly to make it disappear.
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== "false";
+
 // "Incidents" stays disabled here on purpose even though /incidents/:uuid
 // is now a real route (IncidentDetail.tsx) -- that route only has a
 // meaning once a specific alert_uuid is known, reached by opening a card
@@ -17,7 +25,7 @@ const NAV_ITEMS: { id: NavDestination; label: string; glyph: string; built: bool
   { id: "incidents", label: "Incidents", glyph: "◈", built: false, path: "" },
   { id: "risk-map", label: "Risk Map", glyph: "◐", built: true, path: "/risk-map" },
   { id: "analytics", label: "Analytics", glyph: "▤", built: false, path: "/analytics" },
-  { id: "simulator", label: "Simulator", glyph: "⚗", built: false, path: "/simulator" },
+  ...(DEMO_MODE ? [{ id: "simulator" as const, label: "Simulator", glyph: "⚗", built: true, path: "/simulator" }] : []),
 ];
 
 export interface ShellProps {
@@ -32,10 +40,10 @@ export interface ShellProps {
 }
 
 /** App shell -- nav rail, top bar, honesty bar (UX-APPFLOW.md §20). Live
- * Operations and Risk Map are built; Incidents has no standalone
- * destination (see the NAV_ITEMS comment above) and Analytics/Simulator
- * still render disabled per the project's honest-degradation posture
- * (§2 P2) rather than linking to pages that don't exist yet. */
+ * Operations, Risk Map, and Simulator Console are built; Incidents has no
+ * standalone destination (see the NAV_ITEMS comment above) and Analytics
+ * still renders disabled per the project's honest-degradation posture
+ * (§2 P2) rather than linking to a page that doesn't exist yet. */
 export function Shell({ title, active, role = "OPERATOR", honestyFeeds, latencyMs, latencyLabel, deviceCount, children }: ShellProps) {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);

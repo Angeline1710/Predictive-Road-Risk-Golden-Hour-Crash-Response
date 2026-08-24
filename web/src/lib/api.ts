@@ -95,6 +95,9 @@ export type WeatherOverride = "clear" | "rain" | "fog";
 export type VisibilityOverride = "high" | "medium" | "low";
 export type TrafficOverride = "low" | "medium" | "high";
 
+// app/gateways/simulated.py's GatewayMode
+export type GatewayMode = "ok" | "slow" | "timeout" | "reject";
+
 // app/api/risk.py's RiskContextOut
 export interface RiskPoint {
   segment_id: number;
@@ -224,11 +227,18 @@ export const api = {
     return request<RiskPoint[]>(`/v1/risk/bbox?${params}`);
   },
 
-  simCrash: (body: { lat?: number; lon?: number; severity?: Severity; channel_hint?: "DATA" | "SMS" }) =>
-    request<AlertResponse>("/v1/sim/crash", { method: "POST", body: JSON.stringify(body) }),
+  // app/api/sim.py's SimCrashRequest -- only registered when the backend's
+  // RRX_DEMO_MODE is on (defaults true). channel_hint: "SMS" is the real
+  // RRX1 encode/parse/ingest round-trip (PRD §16.2 step 5's "airplane mode,
+  // alert still lands"), not a separate endpoint -- UX-APPFLOW §25's
+  // "Force SMS path" control is this same call with channel_hint set.
+  simCrash: (body: {
+    lat?: number; lon?: number; severity?: Severity;
+    speed_kmh?: number; peak_g?: number; channel_hint?: "DATA" | "SMS";
+  }) => request<AlertResponse>("/v1/sim/crash", { method: "POST", body: JSON.stringify(body) }),
 
-  simGatewayMode: (mode: "ok" | "slow" | "timeout" | "reject") =>
-    request<{ mode: string }>("/v1/sim/gateway/mode", {
+  simGatewayMode: (mode: GatewayMode) =>
+    request<{ mode: GatewayMode }>("/v1/sim/gateway/mode", {
       method: "POST",
       body: JSON.stringify({ mode }),
     }),
