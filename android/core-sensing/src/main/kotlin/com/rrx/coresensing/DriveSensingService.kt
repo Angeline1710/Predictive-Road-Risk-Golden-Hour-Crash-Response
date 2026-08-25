@@ -129,10 +129,16 @@ class DriveSensingService : LifecycleService() {
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Drive sensing", NotificationManager.IMPORTANCE_LOW)
         )
-        // UX-APPFLOW.md §13's ambient notification (risk band, live speed,
-        // "Next: Severe in 2.1 km") needs the risk-serving pipeline wired
-        // into the app, which isn't part of this scaffold -- plain text
-        // for now, real content once core-transport/core-detection land.
+        // Placeholder content for the instant startForeground() needs a
+        // Notification object to exist -- real content (risk band, live
+        // speed, "Next: Severe in 2.1 km", UX-APPFLOW.md §13) arrives
+        // within seconds via com.rrx.app.ui.drive.DriveViewModel's
+        // NotificationManagerCompat.notify(NOTIFICATION_ID, ...) calls,
+        // which update THIS SAME notification from app module code that
+        // has the risk-serving API this core-sensing module deliberately
+        // doesn't depend on (PRD §12.6's module boundary). Updating a
+        // foreground service's notification by id from elsewhere in the
+        // process is a supported Android pattern, not a workaround.
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Road-Risk Response")
             .setContentText("Monitoring for crashes")
@@ -142,8 +148,11 @@ class DriveSensingService : LifecycleService() {
     }
 
     companion object {
-        private const val NOTIFICATION_ID = 4201
-        private const val CHANNEL_ID = "drive_sensing"
+        // Public (not private): com.rrx.app.ui.drive.DriveViewModel posts
+        // updates to this exact notification id/channel from the app
+        // module -- see buildNotification()'s doc comment.
+        const val NOTIFICATION_ID = 4201
+        const val CHANNEL_ID = "drive_sensing"
         private const val EVALUATION_INTERVAL_MS = 200L
 
         fun start(context: Context) {

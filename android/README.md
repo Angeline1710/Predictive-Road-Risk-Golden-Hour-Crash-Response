@@ -125,10 +125,32 @@ distance countdown -- nearest-vertex distance, the same documented proxy
 `NearbySegment` uses elsewhere, not a true distance-ahead. Auto-dismisses
 the instant the driver is no longer nearest to the triggering segment.
 
-Still missing: the ambient/screen-off persistent-notification upgrade
-(still the plain-text one from the sensing pass), always-on driving
-detection, and a post-onboarding Settings screen. See MVP-PLAN.md §3.3
-for what's left and its cost.
+**The ambient/screen-off notification is now real too (2026-08-25).**
+`DriveSensingService` (core-sensing) still owns the foreground service
+and creates the notification channel, but `DriveViewModel` (app) now
+posts real content into that same notification id/channel from outside
+the service -- updating a foreground service's notification by id from
+elsewhere in the process is a supported Android pattern, not a
+workaround, and it's the only way to get this content there at all
+without moving network code into core-sensing and breaking PRD §12.6's
+module boundary. Content: `● Active · 68 km/h · Chengalpattu · Next:
+Severe in 1.2 km` -- live speed, nearest district/road (real fields;
+road-name-from-map-matching still isn't built, same honest gap
+`DriveModeScreen`'s status bar has), and the next notable segment
+ahead, mirroring `SegmentRibbon.kt`'s own `nextNotable` line exactly.
+Polls `/risk/bbox` on the same 200ms `DriveSensingBus` cadence
+Risk Warning does, but throttled far looser (800m moved or 45s stale,
+vs. Drive Mode's on-screen 300m/15s) since this now runs continuously
+in the background whenever sensing is active, not just while a screen
+is open -- PRD §12.1's battery framing applies directly. Hosted inside
+`DriveViewModel`, the same ViewModel that already assumes it outlives
+individual screens for crash-detection's sake (`maybeClassify`'s own
+`sessionState` collection makes the identical lifecycle bet already);
+not a new architectural risk, just a second real use of one already
+accepted.
+
+Still missing: always-on driving detection and a post-onboarding
+Settings screen. See MVP-PLAN.md §3.3 for what's left and its cost.
 
 ### Sensing scope notes (real limitations, not oversights)
 
@@ -346,10 +368,24 @@ for what's left and its cost.
   already has -- `RiskWarningController` hardcodes `Locale.ENGLISH`;
   5-language support exists in onboarding's string resources but isn't
   wired into any spoken-warning path yet.
-- **The ambient/screen-off notification is unchanged from the sensing
-  pass** -- still `DriveSensingService`'s plain "Monitoring for crashes"
-  text, not §13's `● Active · 68 km/h · NH-45 · Next: Severe in 2.1 km`
-  live-updating, band-accented one.
+- **The ambient notification's content is real, but its band accent
+  isn't.** §13's mock shows the notification tinted by the driver's
+  current band; `NotificationCompat` on Android has no per-notification
+  background-colour API that reliably renders across OEM notification
+  shades (unlike this app's own Compose UI, which sets colour directly),
+  so the text states the band ("Next: Severe in 1.2 km") but the
+  notification itself isn't visually re-coloured. `setColor()`/
+  `setColorized()` exist but only guarantee an effect on a
+  `MediaStyle`/`CallStyle` notification, not a plain one, and testing
+  that reliably needs a real device.
+- **No cancellation guard on overlapping ambient fetches across a
+  destroyed-and-recreated ViewModel.** If `DriveViewModel` is cleared
+  and a new instance created while a `/risk/bbox` call from the old
+  instance is still in flight (e.g. a fast process-death-and-restore),
+  the old call's `viewModelScope` cancellation should stop it, but this
+  wasn't verified against that specific race -- only compiled and
+  exercised via the Docker toolchain's static checks, same caveat as
+  everything else in this section.
 
 ## Known gaps worth knowing about before extending this
 
