@@ -1,12 +1,15 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { MapContainer, TileLayer } from "react-leaflet";
 import { api, recentLatencyP95 } from "../lib/api";
-import type { RiskPoint } from "../lib/api";
+import type { HeatCell, RiskPoint } from "../lib/api";
 import { Shell } from "../components/Shell";
 import { RiskOverlay } from "../components/RiskOverlay";
 import { CORRIDOR_CENTER, CORRIDOR_BOUNDS } from "../components/LiveMap";
 import { ConditionSimulator, isSimulated, LIVE_CONDITIONS, type SimulatedConditions } from "../components/ConditionSimulator";
+import { SegmentRibbon, type RibbonSegment } from "../components/SegmentRibbon";
+import { RiskHeatGrid } from "../components/RiskHeatGrid";
+import { distanceToNearestVertexKm } from "../lib/geo";
 import { RISK_BANDS, bandKeyFromApi } from "../lib/bands";
 import type { HonestyFeed } from "../components/SystemHonestyBar";
 
@@ -31,16 +34,29 @@ type SortKey = "score" | "segment_id" | "district";
 
 /** UX-APPFLOW.md §23, analyst view. Distinct from Live Operations
  * (LiveOperations.tsx): no incident rail, and the condition simulator is
- * the point rather than an afterthought. Corridor mode and Comparison mode
- * are spec'd but not built -- both need data this MVP doesn't have (a
- * kilometre-ordered corridor selection, and an ingested MoRTH/iRAD
- * blackspot list respectively; see backend/README.md and MVP-PLAN.md §3.4)
- * -- so their toolbar buttons stay visible but disabled, same posture as
- * LayerControl.tsx's Weather/Traffic/Blackspots toggles. */
+ * the point rather than an afterthought. Corridor mode is real
+ * (2026-08-25): the visible segments ordered by straight-line distance
+ * from the corridor's own centre point (the same nearest-vertex proxy
+ * android's DriveModeViewModel uses, not a true route-km marker -- see
+ * lib/geo.ts) as a full-width Segment Ribbon, plus a real 24h x 7d
+ * heat-grid for whichever segment is selected, batch-scored server-side
+ * in one call (GET /risk/heatgrid). Comparison mode stays disabled: this
+ * isn't "not ingested yet," it's that no real, sub-district-geolocatable
+ * MoRTH-iRAD/SaveLIFE-ZFC blackspot dataset exists anywhere in this
+ * project or was ever obtained -- PRD.md's own open question Q6 flags
+ * this as unresolved, and every accident dataset actually on hand
+ * (tn_road_accident_dataset_original.csv) is whole-district annual
+ * totals with no sub-district location at all. Building Comparison mode
+ * against that would mean fabricating blackspot placements, which this
+ * project's honesty principle rules out -- so the button stays disabled
+ * with the real reason, same posture as LayerControl.tsx's Weather/
+ * Traffic/Blackspots toggles. */
 export function RiskMap() {
   const [conditions, setConditions] = useState<SimulatedConditions>(LIVE_CONDITIONS);
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [corridorMode, setCorridorMode] = useState(false);
+  const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
 
   const query = useQuery({
     queryKey: ["risk", "bbox", "analyst", conditions],
@@ -57,6 +73,32 @@ export function RiskMap() {
 
   const segments = query.data ?? [];
   const sorted = useMemo(() => sortSegments(segments, sortKey, sortDir), [segments, sortKey, sortDir]);
+
+  // Corridor mode's kilometre ruler: distance from the corridor's centre
+  // point to each segment's nearest vertex -- straight-line, not a true
+  // distance-along-the-route (lib/geo.ts's own doc comment covers why).
+  const corridorSegments = useMemo(
+    () =>
+      [...segments]
+        .map((s) => ({ ...s, distanceFromAnchorKm: distanceToNearestVertexKm(CORRIDOR_CENTER[0], CORRIDOR_CENTER[1], s.geometry) }))
+        .sort((a, b) => a.distanceFromAnchorKm - b.distanceFromAnchorKm),
+    [segments],
+  );
+  const effectiveSegmentId = selectedSegmentId ?? corridorSegments[0]?.segment_id ?? null;
+
+  // Re-anchor the heat-grid selection to the nearest segment whenever the
+  // prior selection scrolls out of the current viewport's segment set.
+  useEffect(() => {
+    if (selectedSegmentId != null && !corridorSegments.some((s) => s.segment_id === selectedSegmentId)) {
+      setSelectedSegmentId(null);
+    }
+  }, [corridorSegments, selectedSegmentId]);
+
+  const heatgridQuery = useQuery({
+    queryKey: ["risk", "heatgrid", effectiveSegmentId],
+    queryFn: () => api.riskHeatgrid(effectiveSegmentId!),
+    enabled: corridorMode && effectiveSegmentId != null,
+  });
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) {
@@ -90,8 +132,26 @@ export function RiskMap() {
               background: "var(--surface)",
             }}
           >
-            <DisabledToolbarButton label="Corridor mode" reason="Corridor mode — not built: needs a kilometre-ordered corridor selection tool" />
-            <DisabledToolbarButton label="Comparison mode" reason="Comparison mode — not built: no MoRTH/iRAD blackspot list has been ingested yet" />
+            <button
+              onClick={() => setCorridorMode((v) => !v)}
+              style={{
+                background: corridorMode ? "var(--sodium-500)" : "var(--bitumen-200)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                color: corridorMode ? "var(--bitumen-000)" : "var(--ink-primary)",
+                fontFamily: "var(--font-ui)",
+                fontWeight: corridorMode ? 700 : 400,
+                fontSize: 12,
+                padding: "6px 10px",
+                cursor: "pointer",
+              }}
+            >
+              Corridor mode
+            </button>
+            <DisabledToolbarButton
+              label="Comparison mode"
+              reason="Comparison mode — not built: no real, geolocatable MoRTH/iRAD or SaveLIFE-ZFC blackspot dataset has ever been obtained for this corridor (PRD.md's own open question Q6) — every accident dataset on hand is whole-district annual totals, not placeable on a map"
+            />
             {query.isFetching && (
               <span style={{ marginLeft: "auto", fontFamily: "var(--font-telemetry)", fontSize: 11, color: "var(--ink-muted)" }}>
                 re-scoring…
@@ -99,31 +159,107 @@ export function RiskMap() {
             )}
           </div>
 
-          <div style={{ flex: "1 1 55%", minHeight: 0, position: "relative" }}>
-            <MapContainer
-              center={CORRIDOR_CENTER}
-              zoom={13}
-              style={{ height: "100%", width: "100%", background: "var(--bitumen-000)" }}
-              zoomControl={false}
-            >
-              <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-                attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-                maxZoom={19}
-              />
-              <RiskOverlay segments={segments} />
-            </MapContainer>
-            {query.isError && (
-              <div style={{ position: "absolute", top: 12, left: 12, zIndex: 500, background: "var(--surface)", border: "1px solid var(--flare-500)", borderRadius: "var(--radius-sm)", padding: "8px 12px", fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--flare-500)" }}>
-                Could not reach the API — {(query.error as Error).message}
+          {corridorMode ? (
+            <CorridorView
+              corridorSegments={corridorSegments}
+              selectedSegmentId={effectiveSegmentId}
+              onSelectSegment={setSelectedSegmentId}
+              heatgridQuery={heatgridQuery}
+            />
+          ) : (
+            <>
+              <div style={{ flex: "1 1 55%", minHeight: 0, position: "relative" }}>
+                <MapContainer
+                  center={CORRIDOR_CENTER}
+                  zoom={13}
+                  style={{ height: "100%", width: "100%", background: "var(--bitumen-000)" }}
+                  zoomControl={false}
+                >
+                  <TileLayer
+                    url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+                    attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+                    maxZoom={19}
+                  />
+                  <RiskOverlay segments={segments} />
+                </MapContainer>
+                {query.isError && (
+                  <div style={{ position: "absolute", top: 12, left: 12, zIndex: 500, background: "var(--surface)", border: "1px solid var(--flare-500)", borderRadius: "var(--radius-sm)", padding: "8px 12px", fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--flare-500)" }}>
+                    Could not reach the API — {(query.error as Error).message}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <TopNTable segments={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+              <TopNTable segments={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+            </>
+          )}
         </div>
       </div>
     </Shell>
+  );
+}
+
+type CorridorSegment = RiskPoint & { distanceFromAnchorKm: number };
+
+function CorridorView({
+  corridorSegments,
+  selectedSegmentId,
+  onSelectSegment,
+  heatgridQuery,
+}: {
+  corridorSegments: CorridorSegment[];
+  selectedSegmentId: number | null;
+  onSelectSegment: (id: number) => void;
+  heatgridQuery: UseQueryResult<HeatCell[], Error>;
+}) {
+  const ribbonSegments: RibbonSegment[] = corridorSegments.map((s) => ({
+    segmentId: s.segment_id,
+    band: RISK_BANDS[bandKeyFromApi(s.band)],
+    score: s.score,
+    topFactors: s.top_factors,
+    distanceKm: s.distanceFromAnchorKm,
+  }));
+  const currentIndex = corridorSegments.findIndex((s) => s.segment_id === selectedSegmentId);
+  const selected = currentIndex >= 0 ? corridorSegments[currentIndex] : null;
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
+      <div style={{ marginBottom: 8, fontFamily: "var(--font-ui)", fontSize: 11, color: "var(--ink-muted)" }}>
+        {corridorSegments.length} segments, ordered by straight-line distance from the corridor centre (not a true route-km marker — see lib/geo.ts). Click a cell to inspect its 24h × 7d heat-grid.
+      </div>
+
+      {corridorSegments.length === 0 ? (
+        <p style={{ color: "var(--ink-muted)", fontFamily: "var(--font-ui)", fontSize: 13 }}>No segments in view.</p>
+      ) : (
+        <SegmentRibbon
+          segments={ribbonSegments}
+          currentIndex={currentIndex >= 0 ? currentIndex : undefined}
+          variant="dashboard"
+          onSegmentClick={(s) => onSelectSegment(Number(s.segmentId))}
+          className="corridor-ribbon"
+        />
+      )}
+
+      <div style={{ marginTop: 40 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
+          <span style={{ fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ink-muted)" }}>
+            Heat-grid
+          </span>
+          {selected && (
+            <span style={{ fontFamily: "var(--font-telemetry)", fontSize: 12, color: "var(--ink-secondary)" }}>
+              SEG {selected.segment_id} — {selected.district ?? selected.road_class ?? "unknown"}
+            </span>
+          )}
+        </div>
+
+        {heatgridQuery.isLoading && <p style={{ color: "var(--ink-muted)", fontFamily: "var(--font-ui)", fontSize: 13 }}>Scoring 168 hours…</p>}
+        {heatgridQuery.isError && (
+          <p style={{ color: "var(--flare-500)", fontFamily: "var(--font-ui)", fontSize: 13 }}>
+            Could not reach the API — {heatgridQuery.error.message}
+          </p>
+        )}
+        {heatgridQuery.data && <RiskHeatGrid cells={heatgridQuery.data} />}
+      </div>
+    </div>
   );
 }
 

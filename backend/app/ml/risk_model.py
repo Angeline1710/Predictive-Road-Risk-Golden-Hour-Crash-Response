@@ -98,9 +98,15 @@ def _booster() -> lgb.Booster:
     return lgb.Booster(model_file=str(MODEL_PATH))
 
 
-def _row(f: RiskFeatures) -> pd.DataFrame:
-    hod, dow = f.at.hour, f.at.weekday()
-    row = {
+def _row_dict(f: RiskFeatures, hour: int | None = None, dow: int | None = None) -> dict:
+    """The raw feature dict for one row. `hour`/`dow` default to `f.at`'s
+    own values; overriding them independently is what lets
+    [predict_heatgrid] score the same segment/conditions at 168 different
+    (hour, day-of-week) combinations without needing 168 different `at`
+    datetimes constructed to have the right weekday."""
+    hod = f.at.hour if hour is None else hour
+    d = f.at.weekday() if dow is None else dow
+    return {
         "district": f.district, "road_class": f.road_class, "exposure": f.exposure,
         "is_urban": int(f.is_urban), "curvature_deg": f.curvature_deg,
         "gradient_pct": f.gradient_pct, "lanes": f.lanes, "junction_count": f.junction_count,
@@ -108,8 +114,8 @@ def _row(f: RiskFeatures) -> pd.DataFrame:
         "speed_limit_kmh": f.speed_limit_kmh, "district_fatal_share": f.district_fatal_share,
         "district_vru_share": f.district_vru_share, "district_heavy_share": f.district_heavy_share,
         "district_total_2021": f.district_total_2021, "district_yoy": f.district_yoy,
-        "hour_of_week": dow * 24 + hod, "hour": hod, "dow": dow,
-        "is_weekend": int(dow >= 5), "weather": f.weather, "visibility": f.visibility,
+        "hour_of_week": d * 24 + hod, "hour": hod, "dow": d,
+        "is_weekend": int(d >= 5), "weather": f.weather, "visibility": f.visibility,
         "traffic_density": f.traffic_density,
         "is_peak_hour": int(hod in (8, 9, 10, 17, 18, 19)),
         "is_night": int(hod in list(range(0, 6)) + list(range(21, 24))),
@@ -117,11 +123,18 @@ def _row(f: RiskFeatures) -> pd.DataFrame:
         "unlit_night": int((not f.is_lit) and hod in list(range(0, 6)) + list(range(21, 24))),
         "hist_severe_3y": f.hist_severe_3y, "is_blackspot": int(f.is_blackspot),
     }
+
+
+def _frame(rows: list[dict]) -> pd.DataFrame:
     b = _booster()
-    df = pd.DataFrame([row])[b.feature_name()]
+    df = pd.DataFrame(rows)[b.feature_name()]
     for c in ("district", "road_class", "weather", "visibility", "traffic_density"):
         df[c] = df[c].astype("category")
     return df
+
+
+def _row(f: RiskFeatures) -> pd.DataFrame:
+    return _frame([_row_dict(f)])
 
 
 def features_from_segment(
@@ -207,3 +220,37 @@ def predict(f: RiskFeatures, n_factors: int = 3) -> RiskResult:
     top = [FEATURE_LABELS.get(name, name) for name, _ in ranked[:n_factors]]
 
     return RiskResult(score=round(score, 4), band=band_for(score), top_factors=top)
+
+
+@dataclass
+class HeatCell:
+    dow: int
+    hour: int
+    score: float
+    band: str
+    top_factor: str | None
+
+
+def predict_heatgrid(f: RiskFeatures) -> list[HeatCell]:
+    """UX-APPFLOW.md §23's Corridor mode: "a 24h x 7d heat-grid ... every
+    cell inspectable." All 168 (dow, hour) combinations for ONE segment,
+    scored in a SINGLE `.predict()` call over a 168-row batch -- not 168
+    separate calls. `GET /risk/bbox` calls `predict()` once per segment in
+    a Python loop, which is fine at bbox scale but would make a live
+    168-cell grid impractically slow at the per-request-HTTP-overhead cost
+    of the naive approach; batching the whole grid into one LightGBM call
+    is the actual fix, not a smaller grid or a slower page.
+    """
+    rows = [_row_dict(f, hour=h, dow=d) for d in range(7) for h in range(24)]
+    df = _frame(rows)
+    b = _booster()
+    scores = b.predict(df)
+    contrib = b.predict(df, pred_contrib=True)[:, :-1]   # drop the bias term, keep per-row
+
+    cells = []
+    for i, row in enumerate(rows):
+        score = float(scores[i])
+        ranked = sorted(zip(b.feature_name(), contrib[i]), key=lambda x: -abs(x[1]))
+        top_factor = FEATURE_LABELS.get(ranked[0][0], ranked[0][0]) if ranked else None
+        cells.append(HeatCell(dow=row["dow"], hour=row["hour"], score=round(score, 4), band=band_for(score), top_factor=top_factor))
+    return cells

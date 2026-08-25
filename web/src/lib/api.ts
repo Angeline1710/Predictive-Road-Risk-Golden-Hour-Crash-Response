@@ -98,6 +98,15 @@ export type TrafficOverride = "low" | "medium" | "high";
 // app/gateways/simulated.py's GatewayMode
 export type GatewayMode = "ok" | "slow" | "timeout" | "reject";
 
+// app/api/risk.py's HeatCellOut -- dow 0=Monday..6=Sunday (datetime.weekday()).
+export interface HeatCell {
+  dow: number;
+  hour: number;
+  score: number;
+  band: RiskBand;
+  top_factor: string | null;
+}
+
 // app/api/analytics.py's AnalyticsSummary and its nested models
 export interface LatencyBucket {
   label: string;
@@ -289,6 +298,9 @@ export const api = {
 
   analyticsSummary: (sinceHours = 24) =>
     request<AnalyticsSummary>(`/v1/analytics/summary?since_hours=${sinceHours}`),
+
+  riskHeatgrid: (segmentId: number) =>
+    request<HeatCell[]>(`/v1/risk/heatgrid?segment_id=${segmentId}`),
 };
 
 /** PRD §10.3 `WS /ws/events` -- Redis pub/sub fan-out. Auto-reconnects with

@@ -17,7 +17,7 @@ from sqlalchemy import cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.ml.risk_model import RiskResult, features_from_segment, predict
+from app.ml.risk_model import RiskResult, features_from_segment, predict, predict_heatgrid
 from app.models.road import RoadSegment
 
 log = structlog.get_logger()
@@ -125,3 +125,34 @@ async def risk_bbox(
             model_version=result.model_version, geometry=_coords_from_geojson(geojson_text),
         ))
     return out
+
+
+class HeatCellOut(BaseModel):
+    dow: int    # 0=Monday ... 6=Sunday, matching datetime.weekday()
+    hour: int
+    score: float
+    band: str
+    top_factor: str | None
+
+
+@router.get("/heatgrid", response_model=list[HeatCellOut])
+async def risk_heatgrid(
+    segment_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+) -> list[HeatCellOut]:
+    """UX-APPFLOW.md §23's Corridor mode heat-grid -- one real 24x7 grid
+    for a single segment, scored in one batched LightGBM call
+    (`predict_heatgrid`'s own docstring explains why batching, not a
+    smaller grid, is the fix for what would otherwise be a slow endpoint).
+    Uses `at=now` only to source non-time features (district, road_class,
+    geometry-derived columns); hour and day-of-week are swept explicitly,
+    not read from `at`.
+    """
+    seg = (await db.execute(select(RoadSegment).where(RoadSegment.segment_id == segment_id))).scalar_one_or_none()
+    if seg is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"segment {segment_id} not found")
+    cells = predict_heatgrid(features_from_segment(seg, datetime.now(UTC)))
+    return [
+        HeatCellOut(dow=c.dow, hour=c.hour, score=c.score, band=c.band, top_factor=c.top_factor)
+        for c in cells
+    ]
