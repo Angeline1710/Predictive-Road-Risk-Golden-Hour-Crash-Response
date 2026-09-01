@@ -81,6 +81,8 @@ call to the dispatch gateway.
 
 **Known perf gap:** `GET /risk/bbox` at `limit=1000` (the corridor's full segment count, used by both Live Operations and Risk Map) takes ~26s in this Docker setup -- each segment runs two LightGBM `.predict()` calls (score + SHAP contribution) sequentially in Python, not batched. Correct, not fast. Tolerable for a demo where the panel re-renders after a slider release, not for a production analyst tool moving the slider continuously -- batching the DataFrame into one `.predict()` call per request instead of one per segment is the fix, not yet done.
 
+**Load-tested (2026-08-25, `loadtest/`):** a real k6 burst test found `POST /alerts` missing NFR-P3's 400ms p95 budget under a sustained 100/min load (measured p95 ~675-693ms), with the dominant cause being a real external Nominatim reverse-geocode call in every alert's critical path -- confirmed via `docker logs`, not guessed: 200/200 requests during the test window logged `enrichment.geocode.degraded`, meaning every one either hit Nominatim's documented 1 req/s rate limit or `enrichment.py`'s own 0.5s timeout, and that alone accounts for most of the measured latency. A real, separate bug was found and fixed in the same pass: `services/alerts.py`'s LightGBM `predict()` call was blocking the process's single event loop (this backend runs one `uvicorn` worker on purpose -- `SimulatedPmRahatGateway`'s ticket state is in-process memory that a second worker would silently fragment), serializing every concurrent alert's I/O behind whichever one was mid-inference; wrapping it in `asyncio.to_thread()` cut real connection timeouts from 4/201 to 1/201 in a rerun. The geocoding fix (make it non-blocking, or skip it under load) is NOT done -- `landmark` is a real dispatch-payload field, and trading "usually present" for "reliably absent under load" is a product call, not a drive-by patch. Full numbers and root-cause writeup: `loadtest/README.md`.
+
 ## Repository layout
 
 Matches PRD §12.6:
@@ -92,8 +94,9 @@ app/
 ├── gateways/    DispatchGateway protocol + SimulatedPmRahatGateway
 ├── models/      SQLAlchemy + GeoAlchemy2
 ├── schemas/     Pydantic request/response
-├── ml/          (empty -- Model B serving not wired up yet)
+├── ml/          Model B serving: risk_model.py (LightGBM), models/risk_model_v1.txt
 └── workers/     (empty -- nightly precompute not built yet)
 alembic/         hand-written initial migration (0001, matches PRD §9 exactly)
                  + 0002 (alerts.occupant_hint, for web/'s Incident Detail)
+loadtest/        k6 scripts (alerts_burst.js, risk_point.js) -- see loadtest/README.md
 ```

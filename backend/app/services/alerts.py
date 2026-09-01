@@ -4,6 +4,7 @@ a well-formed payload.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime
 
@@ -141,7 +142,19 @@ async def ingest_alert(
             select(RoadSegment).where(RoadSegment.segment_id == enrichment.segment_id)
         )).scalar_one_or_none()
         if seg is not None:
-            risk = predict_risk(features_from_segment(seg, payload.occurred_at))
+            # MVP-PLAN.md §3.5's k6 burst test (100 alerts/min) found real
+            # NFR-P3 violations (p95 693ms vs. the 400ms budget) plus a
+            # handful of dropped connections -- root cause: this backend
+            # runs a single uvicorn worker (Dockerfile has no --workers
+            # flag, deliberately -- SimulatedPmRahatGateway's in-memory
+            # ticket state is process-local and would silently fragment
+            # across multiple workers, see that class's own docstring), so
+            # LightGBM's synchronous, CPU-bound predict() call was blocking
+            # the ONE event loop for its full duration on every request,
+            # serializing every other concurrent alert's I/O behind it.
+            # asyncio.to_thread moves it off the event loop without
+            # touching the single-worker/in-memory-state constraint.
+            risk = await asyncio.to_thread(predict_risk, features_from_segment(seg, payload.occurred_at))
             alert_row.risk_score = risk.score
             alert_row.risk_band = risk.band
             alert_row.model_b_version = risk.model_version
